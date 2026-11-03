@@ -58,7 +58,8 @@ val TrackColors = listOf(Color(0xFF4FC3F7), Color(0xFFAED581), Color(0xFFF06292)
 fun trackColor(i: Int) = TrackColors[i % TrackColors.size]
 
 enum class Drawer(val label: String, val icon: ImageVector) { BROWSER("Browser", Icons.Default.LibraryMusic), INSTRUMENTS("Instruments", Icons.Default.Piano), GEAR("Pedals & Amps", Icons.Default.Cable) }
-enum class Dock(val label: String) { MIX("Mix"), PIANO("Piano Roll"), STEPS("Step Seq"), NONE("Hide") }
+enum class Dock(val label: String) { MIX("Mix"), DRUMS("Drum Kit"), PIANO("Piano Roll"), STEPS("Step Seq"), NONE("Hide") }
+enum class PlaySurface(val label: String) { PIANO("🎹 Piano keys"), STRINGS("🎸 Guitar strings"), KIT("🥁 Drum kit"), PADS("▦ Drum pads") }
 
 fun barsBeats(s: StudioSession, t: Double): String { val beat = s.stepSeconds * (16.0 / s.timeSigDen)
     val b = (t / beat).toInt(); return String.format(Locale.US, "%3d|%d|%03d", b / s.timeSigNum + 1, b % s.timeSigNum + 1, (((t % beat) / beat) * 960).toInt()) }
@@ -88,9 +89,13 @@ fun DawApp(vm: StudioViewModel = viewModel()) {
             if (vm.lyricsTrackId != null) androidx.activity.compose.BackHandler { vm.lyricsTrackId = null }
             vm.session.tracks.firstOrNull { it.id == vm.lyricsTrackId }?.let { lt -> LyricsPanel(vm, lt) }
             vm.session.tracks.firstOrNull { it.id == vm.keyboardTrackId }?.let { kt -> TrackKeyboard(vm, kt, vm.session.tracks.indexOf(kt)) }
+            vm.pendingTake?.let { p -> AlertDialog(onDismissRequest = {}, title = { Text("Place this take?") },
+                text = { Text("Put the recording " + (if (p.clip != null) "(${fmt(p.clip.duration)})" else "(${p.notes.size} notes)") + " on ${p.trackName}?") },
+                confirmButton = { TextButton({ vm.placePendingTake() }) { Text("Place on track") } },
+                dismissButton = { Row { TextButton({ vm.auditionPendingTake() }) { Text("Listen") }; TextButton({ vm.discardPendingTake() }) { Text("Discard") } } }) }
             DockBar(dock) { dock = it }
             if (dock != Dock.NONE) Box(Modifier.fillMaxWidth().height(if (wide) 300.dp else 330.dp).background(Chrome)) {
-                when (dock) { Dock.MIX -> MixWindow(vm); Dock.PIANO -> PianoRoll(vm); Dock.STEPS -> StepSeq(vm); else -> {} }
+                when (dock) { Dock.MIX -> MixWindow(vm); Dock.PIANO -> PianoRoll(vm); Dock.STEPS -> StepSeq(vm); Dock.DRUMS -> Column { KitSelector(vm.session.kit) { k -> vm.selectKit(null, k) }; DrumKitView(vm, vm.session.kit, Modifier.fillMaxWidth().weight(1f)) }; else -> {} }
             }
             if (vm.status.isNotEmpty()) Text("● " + vm.status, color = Teal.copy(alpha = 0.85f), fontSize = 11.sp, maxLines = 1, modifier = Modifier.fillMaxWidth().background(Color(0xFF0E0F12)).padding(horizontal = 10.dp, vertical = 4.dp).semantics { liveRegion = LiveRegionMode.Polite })
         }
@@ -297,6 +302,10 @@ fun TrackLane(vm: StudioViewModel, t: Track, idx: Int, zoom: Float) {
             DropdownMenu(menu, { menu = false }) {
                 DropdownMenuItem({ Text("Nudge ◀ 1 beat") }, { vm.moveClip(t.id, c.id, -vm.session.stepSeconds * 4) })
                 DropdownMenuItem({ Text("Nudge ▶ 1 beat") }, { vm.moveClip(t.id, c.id, vm.session.stepSeconds * 4) })
+                DropdownMenuItem({ Text("Stretch +1 bar (snap)") }, { vm.resizeClipBars(t.id, c.id, 1) })
+                DropdownMenuItem({ Text("Shrink −1 bar (snap)") }, { vm.resizeClipBars(t.id, c.id, -1) })
+                DropdownMenuItem({ Text("Duplicate") }, { vm.duplicateClip(t.id, c.id); menu = false })
+                DropdownMenuItem({ Text("✨ Polish (snap to bars)") }, { vm.polishTrack(t.id, c.id); menu = false })
                 DropdownMenuItem({ Text("Trim −1 beat") }, { vm.trimClip(t.id, c.id, -vm.session.stepSeconds * 4) })
                 DropdownMenuItem({ Text("Extend +1 beat") }, { vm.trimClip(t.id, c.id, vm.session.stepSeconds * 4) })
                 DropdownMenuItem({ Text("Move to playhead") }, { vm.moveClip(t.id, c.id, vm.playhead - c.startTime); menu = false })
@@ -563,7 +572,8 @@ fun GearEditor(vm: StudioViewModel, t0: Track) {
         t.pedals.forEach { p -> VisualPedal(p, { v -> vm.updatePedal(t.id, p.id) { it.copy(amount = v) }; vm.session.tracks.firstOrNull { it.id == t.id }?.let { vm.triggerTrackNote(it, testPitch) } },
             { v -> vm.updatePedal(t.id, p.id) { it.copy(tone = v) }; vm.session.tracks.firstOrNull { it.id == t.id }?.let { vm.triggerTrackNote(it, testPitch) } },
             { vm.updatePedal(t.id, p.id) { it.copy(on = !it.on) }; vm.session.tracks.firstOrNull { it.id == t.id }?.let { vm.triggerTrackNote(it, testPitch) } }) {
-            Row { SmallBtn("◀", "Move ${p.type.label} earlier") { vm.movePedal(t.id, p.id, -1) }; SmallBtn("✕", "Remove ${p.type.label}") { vm.removePedal(t.id, p.id) }; SmallBtn("▶", "Move ${p.type.label} later") { vm.movePedal(t.id, p.id, 1) } } } }
+            Row { SmallBtn("◀", "Move ${p.type.label} earlier") { vm.movePedal(t.id, p.id, -1) }; SmallBtn("🗑", "Remove ${p.type.label} pedal") { vm.removePedal(t.id, p.id); vm.status = "${p.type.label} pedal removed" }; SmallBtn("▶", "Move ${p.type.label} later") { vm.movePedal(t.id, p.id, 1) } } } }
+        if (t.pedals.isNotEmpty()) ToolChip("Remove all pedals") { vm.updateTrack(t.id) { it.copy(pedals = emptyList()) }; vm.status = "All pedals removed" }
         Box { ToolChip("+ Pedal") { addMenu = true }
             DropdownMenu(addMenu, { addMenu = false }) { PedalType.values().forEach { p -> DropdownMenuItem({ Text(p.label) }, { vm.addPedal(t.id, p); addMenu = false }) } } }
     }
@@ -663,6 +673,7 @@ fun TrackKeyboard(vm: StudioViewModel, t: Track, idx: Int) {
             ToolChip("Oct −") { oct = (oct - 1).coerceAtLeast(0) }; Text("C$oct", color = Color.White, fontSize = 12.sp); ToolChip("Oct +") { oct = (oct + 1).coerceAtMost(7) }
             MSR("R", "Record arm ${t.name}", armed, Rec) { vm.armedTrackId = if (armed) null else t.id }
             ToolChip(if (armed && vm.isPlaying) "■ Stop rec" else "● Record") { vm.toggleTrackRecord(t.id) }
+            ToolChip("✨ Polish") { vm.polishTrack(t.id) }
         }
         val s = vm.session; val key = remember(s.tracks) { SongAI.detectKey(s) }; val deg = SongAI.chordAt(s, key, vm.playhead)
         val prog = SongAI.progression(key); val nextDeg = prog[(prog.indexOf(deg) + 1) % prog.size]
@@ -679,6 +690,17 @@ fun TrackKeyboard(vm: StudioViewModel, t: Track, idx: Int) {
             Text("Sound: ", color = Dim, fontSize = 10.sp)
             FxPresets.forEach { p -> ToolChip(p.name) { vm.applyPreset(t.id, p) } }
         }
+        var surface by remember(t.id) { mutableStateOf(if (t.kind == TrackKind.GUITAR) PlaySurface.STRINGS else PlaySurface.PIANO) }
+        var surfMenu by remember { mutableStateOf(false) }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("PLAY SURFACE ", color = Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Box { ToolChip(surface.label + " ▾") { surfMenu = true }
+                DropdownMenu(surfMenu, { surfMenu = false }) { PlaySurface.values().forEach { p -> DropdownMenuItem({ Text(p.label) }, { surface = p; surfMenu = false }) } } }
+            Text(if (surface == PlaySurface.KIT || surface == PlaySurface.PADS) "  hits record into the drum loop" else "  notes record into ${t.name}", color = Dim, fontSize = 10.sp)
+        }
+        if (surface == PlaySurface.STRINGS) GuitarStrings(vm, t)
+        if (surface == PlaySurface.KIT) { KitSelector(t.kit) { k -> vm.selectKit(t.id, k) }; DrumKitView(vm, t.kit, Modifier.fillMaxWidth().height(200.dp)) }
+        if (surface == PlaySurface.PIANO) {
         // two octaves: white keys row with black keys overlaid
         val whites = listOf(0, 2, 4, 5, 7, 9, 11); val blackAfter = mapOf(0 to 1, 1 to 3, 3 to 6, 4 to 8, 5 to 10)
         BoxWithConstraints(Modifier.fillMaxWidth().height(120.dp).padding(2.dp)) {
@@ -687,12 +709,13 @@ fun TrackKeyboard(vm: StudioViewModel, t: Track, idx: Int) {
                 PianoKey(vm, t, pitch, false, hints, Modifier.width(ww).fillMaxHeight()) } }
             (0 until 14).forEach { w -> blackAfter[w % 7]?.let { semi -> val pitch = 12 * (oct + 1) + 12 * (w / 7) + semi
                 PianoKey(vm, t, pitch, true, hints, Modifier.offset(x = ww * (w + 1) - ww * 0.3f).width(ww * 0.6f).fillMaxHeight(0.6f)) } }
-        }
+        } }
+        if (surface == PlaySurface.PADS) {
         KitSelector(t.kit) { k -> vm.selectKit(t.id, k) }
         Text("DRUM PADS (${t.kit.label}) – recorded into the step pattern while ● Record runs", color = Dim, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 6.dp))
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp)) { DrumPad.values().forEach { p ->
             Box(Modifier.padding(2.dp).size(64.dp, 40.dp).clip(RoundedCornerShape(4.dp)).background(if (p.ordinal % 2 == 0) Color(0xFF8A3E0E) else Color(0xFF0F5E57)).clickable { vm.triggerPad(p, t.kit) }
-                .semantics { contentDescription = "${p.label} pad"; role = Role.Button }, contentAlignment = Alignment.Center) { Text(p.label, color = Color.White, fontSize = 10.sp) } } }
+                .semantics { contentDescription = "${p.label} pad"; role = Role.Button }, contentAlignment = Alignment.Center) { Text(p.label, color = Color.White, fontSize = 10.sp) } } } }
         var rigOpen by remember(t.id) { mutableStateOf(true) }
         Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("RIG HOOKUP:  🎸 ${if (t.kind == TrackKind.GUITAR) t.guitar.label else t.waveform.label} ▸ ${t.pedals.count { it.on }} pedals ▸ ${t.amp.label} ▸ OUT", color = Teal, fontSize = 11.sp, modifier = Modifier.weight(1f), maxLines = 1)
@@ -709,8 +732,12 @@ fun TrackKeyboard(vm: StudioViewModel, t: Track, idx: Int) {
 fun PianoKey(vm: StudioViewModel, t: Track, pitch: Int, black: Boolean, hints: Set<Int>, modifier: Modifier) {
     var down by remember { mutableStateOf(false) }
     val name = "${Tuner.names[pitch % 12]}${pitch / 12 - 1}"
-    Box(modifier.padding(horizontal = 1.dp).clip(RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp))
-        .background(if (down) Orange else if (pitch in hints) (if (black) Color(0xFF0F6E66) else Color(0xFF9FE8DF)) else if (black) Color(0xFF1A1A1A) else Color(0xFFEFEFEF))
+    val ivory = if (down) listOf(Color(0xFFD8D2C4), Color(0xFFBDB6A6)) else if (pitch in hints) listOf(Color(0xFFE9FBF8), Color(0xFF9FE8DF)) else listOf(Color(0xFFFFFFF8), Color(0xFFE6E2D8))
+    val ebony = if (down) listOf(Color(0xFF000000), Color(0xFF2A2A2A)) else if (pitch in hints) listOf(Color(0xFF0F6E66), Color(0xFF06302C)) else listOf(Color(0xFF3A3A3A), Color(0xFF050505))
+    Box(modifier.padding(horizontal = if (black) 0.dp else 0.5.dp).padding(top = if (down) 2.dp else 0.dp) // key dips when pressed
+        .clip(RoundedCornerShape(bottomStart = if (black) 3.dp else 5.dp, bottomEnd = if (black) 3.dp else 5.dp))
+        .background(androidx.compose.ui.graphics.Brush.verticalGradient(if (black) ebony else ivory))
+        .border(0.5.dp, Color(0xFF555555), RoundedCornerShape(bottomStart = 5.dp, bottomEnd = 5.dp))
         .pointerInput(t.id, pitch) { detectTapGestures(onPress = { down = true; val st = vm.keyDown(t.id, pitch)
             tryAwaitRelease(); down = false; vm.keyUp(t.id, pitch, st) }) }
         .semantics { contentDescription = "$name on ${t.name}"; role = Role.Button }, contentAlignment = Alignment.BottomCenter) {
@@ -766,5 +793,52 @@ fun LyricsPanel(vm: StudioViewModel, t: Track) {
             ToolChip("Vocal Polish FX") { vm.applyPreset(t.id, FxPresets.first { it.name == "Vocal Polish" }) }
             Text("  ${vm.voiceInfo}", color = Dim, fontSize = 10.sp) }
         Text("Vocals start at the playhead, one line per 2 bars. Your phone's speech engine voices each line in rhythm onto this track – a natural voice, not pitched studio singing or a licensed vocal model. Pedals and amps on this track also process the vocal.", color = Dim, fontSize = 10.sp)
+    }
+}
+
+
+/** Acoustic kit seen from the drummer's throne: cymbals up top, toms over the kick, hats left, snare front-left. Tap a piece to play it. */
+@Composable
+fun DrumKitView(vm: StudioViewModel, kit: DrumKit, modifier: Modifier) {
+    val shell = when (kit) { DrumKit.MASK_METAL, DrumKit.METAL, DrumKit.DJENT -> Color(0xFF1A1A1A); DrumKit.PROG_ARENA -> Color(0xFFB8860B)
+        DrumKit.TR808, DrumKit.VINTAGE909, DrumKit.ELECTRONIC, DrumKit.HOUSE, DrumKit.TRAP, DrumKit.DNB -> Color(0xFF444C5C); DrumKit.JAZZ_BRUSH, DrumKit.ACOUSTIC -> Color(0xFFB0782E); else -> Color(0xFF9E1E1E) }
+    // (pad, x, y, diameter) in fractions of the area width/height
+    val parts = listOf(Triple(DrumPad.CYMBAL, 0.12f to 0.05f, 0.24f), Triple(DrumPad.OPEN_HAT, 0.78f to 0.02f, 0.2f), Triple(DrumPad.CLOSED_HAT, 0.02f to 0.42f, 0.17f),
+        Triple(DrumPad.HIGH_TOM, 0.36f to 0.08f, 0.14f), Triple(DrumPad.MID_TOM, 0.52f to 0.08f, 0.15f), Triple(DrumPad.LOW_TOM, 0.72f to 0.42f, 0.2f),
+        Triple(DrumPad.SNARE, 0.2f to 0.5f, 0.17f), Triple(DrumPad.KICK, 0.4f to 0.38f, 0.26f), Triple(DrumPad.RIMSHOT, 0.18f to 0.84f, 0.09f),
+        Triple(DrumPad.CLAP, 0.88f to 0.82f, 0.09f), Triple(DrumPad.COWBELL, 0.66f to 0.18f, 0.08f))
+    BoxWithConstraints(modifier.background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF15161A), Color(0xFF2A2018)))).padding(4.dp)) {
+        val W = maxWidth; val H = maxHeight
+        parts.forEach { (p, pos, d) -> var hit by remember { mutableStateOf(false) }
+            val cym = p == DrumPad.CYMBAL || p == DrumPad.OPEN_HAT || p == DrumPad.CLOSED_HAT
+            val size = minOf(W * d, H * (d * 1.9f))
+            Box(Modifier.offset(x = W * pos.first, y = H * pos.second).size(size).clip(androidx.compose.foundation.shape.CircleShape)
+                .background(if (cym) androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(if (hit) 0xFFFFF3B0 else 0xFFE8C66A), Color(0xFF9C7A2A), Color(0xFFC9A34A)))
+                    else androidx.compose.ui.graphics.Brush.radialGradient(listOf(if (hit) Color.White else Color(0xFFF2EFE6), Color(0xFFD9D4C6), shell, shell)))
+                .border(if (cym) 1.dp else 3.dp, if (cym) Color(0xFF6E5520) else Color(0xFFBFBFBF), androidx.compose.foundation.shape.CircleShape)
+                .pointerInput(p, kit) { detectTapGestures(onPress = { hit = true; vm.triggerPad(p, kit); tryAwaitRelease(); hit = false }) }
+                .semantics { contentDescription = "${p.label} – ${kit.label}"; role = Role.Button }, contentAlignment = Alignment.Center) {
+                Text(p.label, color = if (cym) Color(0xFF3A2A00) else Color(0xFF222222), fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+        }
+        Text(if (vm.liveCapture && vm.isPlaying) "● capturing hits into the loop" else "Tap ● MIDI capture + Play to record hits into the loop", color = Dim, fontSize = 9.sp, modifier = Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+/** Six-string fretboard play surface (standard tuning; bass tracks use the low 4). Tap a fret to play; recorded like keys. */
+@Composable
+fun GuitarStrings(vm: StudioViewModel, t: Track) {
+    val bass = t.guitar.label.contains("Bass") || SongAI.role(t) == SongAI.Role.BASS
+    val open = if (bass) listOf(43, 38, 33, 28) else listOf(64, 59, 55, 50, 45, 40)
+    Column(Modifier.fillMaxWidth().background(Color(0xFF3B2414)).padding(vertical = 4.dp).horizontalScroll(rememberScrollState())) {
+        open.forEachIndexed { si, o -> Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(Tuner.names[o % 12], color = Color(0xFFE8D9B5), fontSize = 10.sp, modifier = Modifier.width(18.dp))
+            (0..12).forEach { f -> val pitch = o + f; var down by remember { mutableStateOf(false) }
+                Box(Modifier.size(if (f == 0) 34.dp else (46 - f).dp, 26.dp).background(if (f == 0) Color(0xFF1E1E1E) else Color(0xFF4A2E18))
+                    .border(1.dp, Color(0xFFC0C0C0).copy(alpha = if (f == 0) 0f else 0.8f))
+                    .pointerInput(t.id, pitch) { detectTapGestures(onPress = { down = true; val st = vm.keyDown(t.id, pitch); tryAwaitRelease(); down = false; vm.keyUp(t.id, pitch, st) }) }
+                    .semantics { contentDescription = "String ${si + 1} fret $f"; role = Role.Button }, contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxWidth().height((1 + si * 0.4f).dp).background(if (down) Orange else Color(0xFFD8D8D8)))
+                    if (si == open.size / 2 && f in listOf(3, 5, 7, 9)) Box(Modifier.size(6.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0xFFEDE6D6)))
+                    if (down) Box(Modifier.size(12.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Orange)) } } } }
     }
 }

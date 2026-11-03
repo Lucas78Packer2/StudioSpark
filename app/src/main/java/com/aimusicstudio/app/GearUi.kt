@@ -1,5 +1,7 @@
 package com.aimusicstudio.app
 
+import androidx.compose.ui.draw.drawBehind
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -95,7 +97,13 @@ fun VisualAmp(t: Track, onKnob: (String, Float) -> Unit, onPick: () -> Unit) {
 fun VisualPedal(p: PedalSlot, onAmount: (Float) -> Unit, onTone: (Float) -> Unit, onToggle: () -> Unit, extra: @Composable () -> Unit = {}) {
     val c = Color(p.type.color); val ink = if (c.red * 0.3f + c.green * 0.59f + c.blue * 0.11f > 0.55f) Color.Black else Color.White
     Column(Modifier.padding(4.dp).width(108.dp).clip(RoundedCornerShape(10.dp)).background(Brush.verticalGradient(listOf(c, c.copy(alpha = if (p.on) 0.85f else 0.45f))))
-        .border(2.dp, Color(0xFF888888), RoundedCornerShape(10.dp)).padding(5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        .border(2.dp, Brush.verticalGradient(listOf(Color(0xFFDADADA), Color(0xFF5A5A5A))), RoundedCornerShape(10.dp))
+        .drawBehind { // die-cast enclosure: corner screws, metal sheen, dimmed when bypassed
+            val r = 3.5f; listOf(Offset(9f, 9f), Offset(size.width - 9f, 9f), Offset(9f, size.height - 9f), Offset(size.width - 9f, size.height - 9f)).forEach { o ->
+                drawCircle(Color(0xFFBDBDBD), r, o); drawLine(Color(0xFF555555), Offset(o.x - r * 0.7f, o.y), Offset(o.x + r * 0.7f, o.y), 1.2f) }
+            drawRect(Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.Transparent, Color.Black.copy(alpha = 0.15f))))
+            if (!p.on) drawRect(Color.Black.copy(alpha = 0.25f)) }
+        .padding(5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(9.dp).clip(RoundedCornerShape(5.dp)).background(if (p.on) Color(0xFFFF2020) else Color(0xFF401010)))
         Row { GearKnob("Level", p.amount, 34.dp, Color(0xFF111111), ink, onAmount); GearKnob("Tone", p.tone, 34.dp, Color(0xFF111111), ink, onTone) }
         Text(p.type.label.substringBefore("-style").substringBefore(" ").uppercase(), color = ink, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp, maxLines = 1)

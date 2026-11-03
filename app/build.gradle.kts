@@ -3,14 +3,15 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 android {
+    testOptions { unitTests.isReturnDefaultValues = true }
     namespace = "com.aimusicstudio.app"
     compileSdk = 34
     defaultConfig {
         applicationId = "com.aimusicstudio.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "1.2.4"
+        versionCode = 8
+        versionName = "1.2.5"
     }
     signingConfigs {
         create("release") {
@@ -32,6 +33,7 @@ android {
     composeOptions { kotlinCompilerExtensionVersion = "1.5.10" }
 }
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     val bom = platform("androidx.compose:compose-bom:2024.02.00")
     implementation(bom)
     implementation("androidx.core:core-ktx:1.12.0")

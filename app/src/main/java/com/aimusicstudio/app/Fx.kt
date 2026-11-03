@@ -110,6 +110,9 @@ object Fx {
         DrumKit.DNB -> Kit(1.2, 0.6, 1.1, 1.6, 0.1f)
         DrumKit.ELECTRONIC -> Kit(1.1, 0.8, 0.9, 1.6, 0.06f)
         DrumKit.LOFI -> Kit(0.9, 0.9, 0.7, 1.2, 0.12f, crush = 10, dark = 0.5f)
+        DrumKit.PROG_ARENA -> Kit(0.95, 1.5, 1.0, 1.2, 0.38f)       // deep shells, long tom ring, big hall
+        DrumKit.MASK_METAL -> Kit(1.2, 0.55, 1.3, 2.6, 0.12f)       // clicky triggered kick, cracking snare
+        DrumKit.DJENT -> Kit(1.1, 0.5, 1.1, 2.0, 0.08f, dark = 0.9f) // tight, dry, gated
     }
     /** Per-kit synthesized drum voices (no licensed samples): layered acoustic kick thud + beater click, snare crack + wires,
      *  brush swishes, long 808 sub, 909 punch, tight metal kicks. Each kit has its own tuning/decay/drive/room. */

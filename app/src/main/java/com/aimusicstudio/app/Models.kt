@@ -202,5 +202,5 @@ enum class GuitarModel(val label: String, val brightness: Float, val body: Float
     TAYLOR("Taylor-style Grand Auditorium", 0.6f, 0.85f), MUSICMAN("Music Man-style StingRay Bass", 0.4f, 0.6f), RICK_BASS("Rickenbacker-style 4003 Bass", 0.55f, 0.55f),
     THUNDERBIRD("Gibson-style Thunderbird Bass", 0.3f, 0.75f), IBANEZ_SR("Ibanez-style SR 5-String Bass", 0.45f, 0.5f), HOFNER("Hofner-style Violin Bass", 0.25f, 0.8f)
 }
-enum class DrumKit(val label: String) { ROCK("Rock"), TR808("808"), ACOUSTIC("Acoustic Jazz"), ELECTRONIC("Electronic"), LOFI("Lo-Fi"), TRAP("Trap"), METAL("Metal"), HOUSE("House"), JAZZ_BRUSH("Jazz Brushes"), DNB("Drum & Bass"), VINTAGE909("909") }
+enum class DrumKit(val label: String) { ROCK("Rock"), TR808("808"), ACOUSTIC("Acoustic Jazz"), ELECTRONIC("Electronic"), LOFI("Lo-Fi"), TRAP("Trap"), METAL("Metal"), HOUSE("House"), JAZZ_BRUSH("Jazz Brushes"), DNB("Drum & Bass"), VINTAGE909("909"), PROG_ARENA("Arena Prog Kit (big toms, Peart-inspired)"), MASK_METAL("Mask Metal Kit (triggered double-kick, Jordison-inspired)"), DJENT("Djent Tight Kit") }
 enum class MixerLayout(val label: String) { CONSOLE("Full Console"), COMPACT("Compact"), BUS("Bus / Sends") }

@@ -189,7 +189,8 @@ object MixRenderer {
             val buf = FloatArray(n)
             for (c in t.clips) {
                 val src = AudioDecoder.decode(File(stemsDir, c.fileName)); val o = (c.startTime * SR).toInt(); val so = (c.sourceStartTime * SR).toInt()
-                for (i in 0 until (c.duration * SR).toInt()) { val si = so + i; val di = o + i; if (si >= src.size || di >= n) break; buf[di] += src[si] }
+                if (src.isEmpty()) continue
+                for (i in 0 until (c.duration * SR).toInt()) { var si = so + i; val di = o + i; if (di >= n) break; if (si >= src.size) si = so + (i % kotlin.math.max(1, src.size - so)); if (si >= src.size) break; buf[di] += src[si] }
             }
             for (nt in t.notes) { val v = if (t.kind == TrackKind.GUITAR) Fx.guitarNote(t.guitar, nt.pitch, nt.duration, nt.velocity) else InstrumentSoundGenerator.note(t.waveform, nt.pitch, nt.duration, nt.velocity); val o = (nt.startTime * SR).toInt()
                 for (i in v.indices) { if (o + i >= n) break; buf[o + i] += v[i] } }
@@ -277,16 +278,23 @@ class AudioPlayer {
         }.start()
     }
 
-    fun play(l: FloatArray, r: FloatArray, from: Double, loop: ClosedFloatingPointRange<Double>?, onEnd: () -> Unit) {
-        stop(); stopFlag = false; isPlaying = true
+    @Volatile private var curL = FloatArray(0); @Volatile private var curR = FloatArray(0)
+    @Volatile private var curLoop: ClosedFloatingPointRange<Double>? = null
+    /** Hot-swap the rendered mix while playing so pads/keys/takes recorded during playback are heard on the next pass. */
+    fun swap(l: FloatArray, r: FloatArray, loop: ClosedFloatingPointRange<Double>?) { curL = l; curR = r; curLoop = loop }
+
+    fun play(l0: FloatArray, r0: FloatArray, from: Double, loop0: ClosedFloatingPointRange<Double>?, onEnd: () -> Unit) {
+        stop(); stopFlag = false; isPlaying = true; curL = l0; curR = r0; curLoop = loop0
         thread = Thread {
             val block = 2048; val at = newTrack(2, AudioTrack.MODE_STREAM, block * 8 * 2); at.play()
-            var i = (from * SR).toInt().coerceIn(0, l.size)
+            var i = (from * SR).toInt().coerceIn(0, l0.size)
             val buf = FloatArray(block * 2)
             while (!stopFlag) {
+                val l = curL; val r = curR; val loop = curLoop
+                if (loop != null && i < (loop.start * SR).toInt() - SR || loop != null && i > (loop.endInclusive * SR).toInt()) i = (loop.start * SR).toInt()
                 val end = loop?.let { min((it.endInclusive * SR).toInt(), l.size) } ?: l.size
                 if (i >= end) { if (loop != null) i = (loop.start * SR).toInt() else break }
-                val cnt = min(block, end - i); var peak = 0f; var sum = 0f
+                val cnt = min(block, end - i); if (cnt <= 0) { if (loop == null) break; i = (loop.start * SR).toInt(); continue }; var peak = 0f; var sum = 0f
                 for (k in 0 until cnt) { buf[2 * k] = l[i + k]; buf[2 * k + 1] = r[i + k]; val a = abs(l[i + k]) + abs(r[i + k]); peak = max(peak, a / 2); sum += a * a / 4 }
                 at.write(buf, 0, cnt * 2, AudioTrack.WRITE_BLOCKING)
                 i += cnt; playhead = i.toDouble() / SR; level = max(peak * 0.6f, sqrt(sum / max(cnt, 1)) * 1.4f).coerceAtMost(1f)
@@ -304,6 +312,7 @@ class TakeRecorder {
     private var thread: Thread? = null
 
     @SuppressLint("MissingPermission")
+    @Volatile var monitor = true
     fun start(out: File, onDone: (File) -> Unit) {
         if (isRecording) return
         isRecording = true
@@ -311,10 +320,17 @@ class TakeRecorder {
             val min = AudioRecord.getMinBufferSize(SR, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
             val rec = AudioRecord(MediaRecorder.AudioSource.MIC, SR, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, max(min, 8192))
             val all = ArrayList<Float>(); val sb = ShortArray(2048)
+            // Live monitoring: mic -> speaker/headphones so the singer hears themselves (use headphones to avoid feedback).
+            val mon = runCatching { AudioTrack.Builder()
+                .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+                .setAudioFormat(AudioFormat.Builder().setSampleRate(SR).setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                .setTransferMode(AudioTrack.MODE_STREAM).setBufferSizeInBytes(8192 * 4).build().also { it.play() } }.getOrNull()
+            val fb = FloatArray(2048)
             rec.startRecording()
             while (isRecording) { val n = rec.read(sb, 0, sb.size); var p = 0f
-                for (k in 0 until max(n, 0)) { val v = sb[k] / 32768f; all.add(v); p = max(p, abs(v)) }; level = p }
-            rec.stop(); rec.release(); level = 0f
+                for (k in 0 until max(n, 0)) { val v = sb[k] / 32768f; all.add(v); fb[k] = v; p = max(p, abs(v)) }; level = p
+                if (monitor && n > 0) mon?.write(fb, 0, n, AudioTrack.WRITE_NON_BLOCKING) }
+            rec.stop(); rec.release(); level = 0f; runCatching { mon?.stop(); mon?.release() }
             MixRenderer.writeWavInterleaved(out, all.toFloatArray(), 1); onDone(out)
         }.also { it.start() }
     }

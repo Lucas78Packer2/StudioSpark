@@ -75,7 +75,7 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
     fun update(f: (StudioSession) -> StudioSession) {
         val now = System.currentTimeMillis()
         if (now - lastPush > 250) { undoStack.addLast(session); if (undoStack.size > 100) undoStack.removeFirst(); redoStack.clear() }
-        lastPush = now; session = f(session).copy(lastEdited = now); canUndo = undoStack.isNotEmpty(); canRedo = false
+        lastPush = now; session = f(session).copy(lastEdited = now); canUndo = undoStack.isNotEmpty(); canRedo = false; rerenderIfPlaying()
     }
     fun undo() { undoStack.removeLastOrNull()?.let { redoStack.addLast(session); session = it; status = "Undo" }; lastPush = 0; canUndo = undoStack.isNotEmpty(); canRedo = redoStack.isNotEmpty() }
     fun redo() { redoStack.removeLastOrNull()?.let { undoStack.addLast(session); session = it; status = "Redo" }; lastPush = 0; canUndo = undoStack.isNotEmpty(); canRedo = redoStack.isNotEmpty() }
@@ -124,11 +124,19 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- Transport ----
-    fun play() { val s = session; viewModelScope.launch(Dispatchers.Default) {
+    /** Loop region if set; otherwise the whole song (rounded to bars) loops so drum loops and recorded parts keep playing. */
+    private fun loopFor(s: StudioSession) = if (s.isLoopEnabled && s.loopEnd > s.loopStart) s.loopStart..s.loopEnd
+        else 0.0..(kotlin.math.ceil(s.length / s.barSeconds) * s.barSeconds)
+    private var renderJob: kotlinx.coroutines.Job? = null
+    fun play() { val s = session; isPlaying = true; viewModelScope.launch(Dispatchers.Default) {
         val (l, r) = MixRenderer.render(s, stemsDir)
-        val loop = if (s.isLoopEnabled && s.loopEnd > s.loopStart) s.loopStart..s.loopEnd else null
-        val from = if (playhead >= s.length) 0.0 else playhead
+        val loop = loopFor(s)
+        val from = if (player.playhead >= loop.endInclusive) loop.start else player.playhead
         player.play(l, r, from, loop) {} } }
+    /** Re-render in the background whenever the session changes during playback (pads, keys, takes, mutes, kit). */
+    private fun rerenderIfPlaying() { if (!player.isPlaying) return; val s = session
+        renderJob?.cancel(); renderJob = viewModelScope.launch(Dispatchers.Default) { delay(120)
+            val (l, r) = MixRenderer.render(s, stemsDir); if (isActive && player.isPlaying) player.swap(l, r, loopFor(s)) } }
     fun pause() = player.stop()
     fun stop() { player.stop(); player.playhead = 0.0 }
     fun seek(t: Double) { val was = player.isPlaying; player.stop(); player.playhead = t; if (was) play() }
@@ -143,11 +151,15 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
     fun startRecording() {
         val name = "take-" + SimpleDateFormat("HHmmss", Locale.US).format(Date()) + ".wav"
         isRecording = true; status = "Recording…"
+        val startAt = if (player.isPlaying) player.playhead else playhead
+        val target = (armedTrackId ?: selectedTrackId)?.let { id -> session.tracks.firstOrNull { it.id == id && (it.kind == TrackKind.AUDIO || it.kind == TrackKind.LYRICS) } }
         recorder.start(File(stemsDir, name)) { f ->
             viewModelScope.launch { isRecording = false
                 val d = withContext(Dispatchers.IO) { AudioDecoder.durationOf(f) }
-                update { it.copy(tracks = it.tracks + Track(name = "Take ${it.tracks.size + 1}", clips = listOf(AudioClip(fileName = f.name, startTime = playhead, duration = d)))) }
-                refreshLibrary(); status = "Recorded take added as new track" } }
+                if (d <= 0) { status = "Recording was empty – check microphone permission"; return@launch }
+                val clip = AudioClip(fileName = f.name, startTime = startAt, duration = d)
+                pendingTake = PendingTake(target?.id, target?.name ?: "a new vocal track", clip = clip)
+                refreshLibrary(); status = "Take recorded – place it on the track?" } }
     }
     fun stopRecording() { viewModelScope.launch(Dispatchers.IO) { recorder.stop() } }
 
@@ -195,6 +207,7 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
         val step = ((playhead / session.stepSeconds).roundToIntSafe()) % 16
         if (pad != null) { update { it.copy(drumPattern = it.drumPattern.let { p -> if (p.steps[pad]!![step]) p else p.toggled(pad, step) }) }; return }
         val id = armedTrackId ?: track?.id ?: return
+        if (kbRecording) { takeNotes += SynthNote(pitch = pitch!!, startTime = (playhead / session.stepSeconds).roundToIntSafe() * session.stepSeconds, duration = session.stepSeconds * 2); return }
         val q = (playhead / session.stepSeconds).roundToIntSafe() * session.stepSeconds
         updateTrack(id) { it.copy(notes = it.notes + SynthNote(pitch = pitch!!, startTime = q, duration = session.stepSeconds * 2)) }
     }
@@ -210,14 +223,51 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
         return if (isPlaying && (liveCapture || armedTrackId == trackId)) playhead else null
     }
     /** One-tap record on the keyboard panel: arm this track, enable capture, start transport. Tap again to stop. */
+    private val takeNotes = mutableListOf<SynthNote>(); private var kbRecording = false
     fun toggleTrackRecord(trackId: String) {
-        if (isPlaying && armedTrackId == trackId) { pause(); liveCapture = false; status = "Stopped recording"; return }
+        if (kbRecording && armedTrackId == trackId) { pause(); liveCapture = false; kbRecording = false
+            val t = session.tracks.firstOrNull { it.id == trackId }
+            if (takeNotes.isNotEmpty() && t != null) { pendingTake = PendingTake(trackId, t.name, notes = takeNotes.toList()); status = "Take recorded – place it on ${t.name}?" }
+            else status = "Stopped recording – no notes played"
+            takeNotes.clear(); return }
+        takeNotes.clear(); kbRecording = true
         armedTrackId = trackId; liveCapture = true; if (!isPlaying) play(); status = "● Recording – play the keys"
     }
+    // ---- Pending takes: ask before placing ----
+    data class PendingTake(val trackId: String?, val trackName: String, val clip: AudioClip? = null, val notes: List<SynthNote> = emptyList())
+    var pendingTake by mutableStateOf<PendingTake?>(null)
+    fun placePendingTake() { val p = pendingTake ?: return; pendingTake = null
+        if (p.clip != null) { if (p.trackId != null && session.tracks.any { it.id == p.trackId }) updateTrack(p.trackId) { it.copy(isMuted = false, clips = it.clips + p.clip) }
+            else update { it.copy(tracks = it.tracks + Track(name = "Vocal Take ${it.tracks.size + 1}", clips = listOf(p.clip))) } }
+        if (p.notes.isNotEmpty() && p.trackId != null) updateTrack(p.trackId) { it.copy(isMuted = false, notes = it.notes + p.notes) }
+        status = "Take placed on ${p.trackName}" }
+    fun discardPendingTake() { pendingTake = null; status = "Take discarded" }
+    fun auditionPendingTake() { val p = pendingTake ?: return; viewModelScope.launch(Dispatchers.Default) {
+        if (p.clip != null) player.oneShot(AudioDecoder.decode(File(stemsDir, p.clip.fileName)), session.masterVolume)
+        else { val t = session.tracks.firstOrNull { it.id == p.trackId } ?: return@launch
+            val tmp = session.copy(tracks = listOf(t.copy(clips = emptyList(), notes = p.notes, isMuted = false, isSoloed = false)), drumPattern = session.drumPattern.copy(isEnabled = false))
+            val (l, _) = MixRenderer.render(tmp, stemsDir); val a = ((p.notes.minOf { it.startTime }) * SR).toInt().coerceIn(0, l.size)
+            player.oneShot(l.copyOfRange(a, l.size), 1f) } } }
+
+    // ---- Clip editing (bar-grid snap) ----
+    private fun snapBar(x: Double) = kotlin.math.round(x / session.barSeconds) * session.barSeconds
+    /** Stretch/shrink by whole bars; duration always lands on a bar multiple (min 1 bar). Longer than the source loops it. */
+    fun resizeClipBars(trackId: String, clipId: String, bars: Int) = updateTrack(trackId) { t -> t.copy(clips = t.clips.map {
+        if (it.id != clipId) it else { val b = session.barSeconds; val cur = kotlin.math.max(1.0, kotlin.math.round(it.duration / b)); it.copy(startTime = snapBar(it.startTime), duration = kotlin.math.max(1.0, cur + bars) * b) } }) }
+    fun duplicateClip(trackId: String, clipId: String) = updateTrack(trackId) { t -> val c = t.clips.firstOrNull { it.id == clipId } ?: return@updateTrack t
+        val end = kotlin.math.ceil((c.startTime + c.duration) / session.barSeconds - 1e-6) * session.barSeconds
+        t.copy(clips = t.clips + c.copy(id = java.util.UUID.randomUUID().toString(), startTime = end)) }
+    /** Polish (default behavior): snap clip start + length to the bar grid; on instrument tracks quantize notes to 16th steps and even out velocities. */
+    fun polishTrack(trackId: String, clipId: String? = null) { val st = session.stepSeconds; val b = session.barSeconds
+        updateTrack(trackId) { t -> t.copy(
+            clips = t.clips.map { if (clipId != null && it.id != clipId) it else it.copy(startTime = snapBar(it.startTime), duration = kotlin.math.max(1.0, kotlin.math.round(it.duration / b)) * b) },
+            notes = if (clipId != null) t.notes else t.notes.map { n -> n.copy(startTime = kotlin.math.round(n.startTime / st) * st, duration = kotlin.math.max(1.0, kotlin.math.round(n.duration / st)) * st * 0.95, velocity = (n.velocity * 0.5f + 0.4f).coerceIn(0.3f, 1f)) }.distinctBy { it.pitch to it.startTime }) }
+        status = "Polished: snapped to bar grid" + if (clipId == null) " and quantized notes" else "" }
     fun keyUp(trackId: String, pitch: Int, start: Double?) {
         start ?: return
         val step = session.stepSeconds; val q = kotlin.math.round(start / step) * step
         val dur = (kotlin.math.round((playhead - start).coerceAtLeast(step) / step) * step).coerceAtLeast(step)
+        if (kbRecording && armedTrackId == trackId) { takeNotes += SynthNote(pitch = pitch, startTime = q, duration = dur); status = "Captured ${takeNotes.size} notes"; return }
         updateTrack(trackId) { it.copy(notes = it.notes + SynthNote(pitch = pitch, startTime = q, duration = dur)) }
         status = "Recorded ${Tuner.names[pitch % 12]}${pitch / 12 - 1} into ${session.tracks.firstOrNull { it.id == trackId }?.name}"
     }
