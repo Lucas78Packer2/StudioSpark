@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.AIMusicStudio" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF0E1416</item>
+        <item name="android:statusBarColor">#FF0E1416</item>
+    </style>
+</resources>

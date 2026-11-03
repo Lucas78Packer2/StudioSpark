@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">StudioSpark</string>
+    <string name="mic_rationale">StudioSpark uses the microphone to record instrument takes into your tracks.</string>
+</resources>
