@@ -9,8 +9,8 @@ android {
         applicationId = "com.aimusicstudio.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.2.3"
+        versionCode = 7
+        versionName = "1.2.4"
     }
     signingConfigs {
         create("release") {
