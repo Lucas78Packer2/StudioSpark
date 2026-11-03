@@ -89,10 +89,10 @@ fun DawApp(vm: StudioViewModel = viewModel()) {
             if (vm.lyricsTrackId != null) androidx.activity.compose.BackHandler { vm.lyricsTrackId = null }
             vm.session.tracks.firstOrNull { it.id == vm.lyricsTrackId }?.let { lt -> LyricsPanel(vm, lt) }
             vm.session.tracks.firstOrNull { it.id == vm.keyboardTrackId }?.let { kt -> TrackKeyboard(vm, kt, vm.session.tracks.indexOf(kt)) }
-            vm.pendingTake?.let { p -> AlertDialog(onDismissRequest = {}, title = { Text("Place this take?") },
+            vm.pendingTake?.let { p -> AlertDialog(onDismissRequest = {}, title = { Text("Your take – add it to your piece?") },
                 text = { Text("Put the recording " + (if (p.clip != null) "(${fmt(p.clip.duration)})" else "(${p.notes.size} notes)") + " on ${p.trackName}?") },
                 confirmButton = { TextButton({ vm.placePendingTake() }) { Text("Place on track") } },
-                dismissButton = { Row { TextButton({ vm.auditionPendingTake() }) { Text("Listen") }; TextButton({ vm.discardPendingTake() }) { Text("Discard") } } }) }
+                dismissButton = { Row { TextButton({ vm.auditionPendingTake() }) { Text("Listen (private)") }; TextButton({ vm.discardPendingTake() }) { Text("Discard") } } }) }
             DockBar(dock) { dock = it }
             if (dock != Dock.NONE) Box(Modifier.fillMaxWidth().height(if (wide) 300.dp else 330.dp).background(Chrome)) {
                 when (dock) { Dock.MIX -> MixWindow(vm); Dock.PIANO -> PianoRoll(vm); Dock.STEPS -> StepSeq(vm); Dock.DRUMS -> Column { KitSelector(vm.session.kit) { k -> vm.selectKit(null, k) }; DrumKitView(vm, vm.session.kit, Modifier.fillMaxWidth().weight(1f)) }; else -> {} }

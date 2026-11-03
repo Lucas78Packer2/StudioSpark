@@ -267,16 +267,37 @@ class AudioPlayer {
             .setChannelMask(if (ch == 2) AudioFormat.CHANNEL_OUT_STEREO else AudioFormat.CHANNEL_OUT_MONO).build())
         .setTransferMode(mode).setBufferSizeInBytes(bytes).build()
 
-    /** Fire-and-forget trigger for pads, synth keys, and sample previews. */
-    fun oneShot(x: FloatArray, gain: Float = 1f) {
-        if (x.isEmpty()) return
-        Thread {
-            val at = newTrack(1, AudioTrack.MODE_STATIC, x.size * 4)
-            at.write(FloatArray(x.size) { x[it] * gain }, 0, x.size, AudioTrack.WRITE_BLOCKING)
-            level = x.maxOf { abs(it) } * gain
-            at.play(); Thread.sleep((x.size * 1000L / SR) + 50); at.release(); level = 0f
-        }.start()
-    }
+    // Live voices: ONE always-running stream track mixes every tap (pads, keys, strings, previews).
+    // v1.2.5 built a new MODE_STATIC float AudioTrack per tap; many devices reject/never start those
+    // (static float + exhausted track slots), so taps were silent. A streaming mixer is reliable.
+    private class Voice(val x: FloatArray, val g: Float) { var pos = 0 }
+    private val voices = java.util.concurrent.ConcurrentLinkedQueue<Voice>()
+    @Volatile private var liveThread: Thread? = null
+    private fun ensureLive() { if (liveThread?.isAlive == true) return; synchronized(this) { if (liveThread?.isAlive == true) return
+        liveThread = Thread {
+            val block = 512
+            val minB = AudioTrack.getMinBufferSize(SR, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT)
+            val at = newTrack(1, AudioTrack.MODE_STREAM, max(minB, block * 4 * 2)); at.play()
+            val buf = FloatArray(block); var idle = 0
+            while (true) {
+                java.util.Arrays.fill(buf, 0f); var peak = 0f
+                val it = voices.iterator()
+                while (it.hasNext()) { val v = it.next(); val n = min(block, v.x.size - v.pos)
+                    for (k in 0 until n) buf[k] += v.x[v.pos + k] * v.g
+                    v.pos += n; if (v.pos >= v.x.size) it.remove() }
+                for (k in 0 until block) { val y = buf[k].coerceIn(-1f, 1f); buf[k] = y; peak = max(peak, abs(y)) }
+                if (peak > 0f) { level = peak; idle = 0 } else idle++
+                at.write(buf, 0, block, AudioTrack.WRITE_BLOCKING)
+                if (idle > SR * 20 / block && voices.isEmpty()) break   // release after 20 s silence
+            }
+            at.stop(); at.release(); level = 0f
+        }.also { it.priority = Thread.MAX_PRIORITY; it.start() } } }
+
+    /** Fire-and-forget trigger for pads, synth keys, strings and sample previews — sounds with transport stopped or playing. */
+    fun oneShot(x: FloatArray, gain: Float = 1f) { if (x.isEmpty()) return; voices.add(Voice(x, gain)); ensureLive() }
+    /** Private review of a recorded take: stops other preview voices first. */
+    fun audition(x: FloatArray, gain: Float = 1f) { voices.clear(); oneShot(x, gain) }
+    fun stopPreview() = voices.clear()
 
     @Volatile private var curL = FloatArray(0); @Volatile private var curR = FloatArray(0)
     @Volatile private var curLoop: ClosedFloatingPointRange<Double>? = null

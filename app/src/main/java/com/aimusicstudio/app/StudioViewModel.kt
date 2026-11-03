@@ -236,18 +236,18 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
     // ---- Pending takes: ask before placing ----
     data class PendingTake(val trackId: String?, val trackName: String, val clip: AudioClip? = null, val notes: List<SynthNote> = emptyList())
     var pendingTake by mutableStateOf<PendingTake?>(null)
-    fun placePendingTake() { val p = pendingTake ?: return; pendingTake = null
+    fun placePendingTake() { val p = pendingTake ?: return; pendingTake = null; player.stopPreview()
         if (p.clip != null) { if (p.trackId != null && session.tracks.any { it.id == p.trackId }) updateTrack(p.trackId) { it.copy(isMuted = false, clips = it.clips + p.clip) }
             else update { it.copy(tracks = it.tracks + Track(name = "Vocal Take ${it.tracks.size + 1}", clips = listOf(p.clip))) } }
         if (p.notes.isNotEmpty() && p.trackId != null) updateTrack(p.trackId) { it.copy(isMuted = false, notes = it.notes + p.notes) }
-        status = "Take placed on ${p.trackName}" }
-    fun discardPendingTake() { pendingTake = null; status = "Take discarded" }
-    fun auditionPendingTake() { val p = pendingTake ?: return; viewModelScope.launch(Dispatchers.Default) {
-        if (p.clip != null) player.oneShot(AudioDecoder.decode(File(stemsDir, p.clip.fileName)), session.masterVolume)
+        status = "Your take is now part of your piece on ${p.trackName}" }
+    fun discardPendingTake() { player.stopPreview(); pendingTake = null; status = "Take discarded" }
+    fun auditionPendingTake() { val p = pendingTake ?: return; status = "Listening privately – not on the track yet"; viewModelScope.launch(Dispatchers.Default) {
+        if (p.clip != null) player.audition(AudioDecoder.decode(File(stemsDir, p.clip.fileName)), session.masterVolume)
         else { val t = session.tracks.firstOrNull { it.id == p.trackId } ?: return@launch
             val tmp = session.copy(tracks = listOf(t.copy(clips = emptyList(), notes = p.notes, isMuted = false, isSoloed = false)), drumPattern = session.drumPattern.copy(isEnabled = false))
             val (l, _) = MixRenderer.render(tmp, stemsDir); val a = ((p.notes.minOf { it.startTime }) * SR).toInt().coerceIn(0, l.size)
-            player.oneShot(l.copyOfRange(a, l.size), 1f) } } }
+            player.audition(l.copyOfRange(a, l.size), 1f) } } }
 
     // ---- Clip editing (bar-grid snap) ----
     private fun snapBar(x: Double) = kotlin.math.round(x / session.barSeconds) * session.barSeconds
