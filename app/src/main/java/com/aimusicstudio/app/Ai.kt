@@ -126,3 +126,30 @@ object SongAI {
         return Concept(title, genre, mood, theme, form, bpm, key.name, vocal, inst)
     }
 }
+
+data class FxPreset(val name: String, val amp: AmpModel, val pedals: List<Pair<PedalType, Float>>, val guitar: GuitarModel? = null, val waveform: SynthWaveform? = null)
+
+val FxPresets = listOf(
+    FxPreset("Clean Funk", AmpModel.CLEAN, listOf(PedalType.COMPRESSOR to 0.5f, PedalType.AUTOWAH to 0.5f), guitar = GuitarModel.STRAT),
+    FxPreset("Classic Rock", AmpModel.PLEXI, listOf(PedalType.OVERDRIVE to 0.5f, PedalType.REVERB to 0.2f), guitar = GuitarModel.LESPAUL),
+    FxPreset("Metal Rhythm", AmpModel.METAL, listOf(PedalType.NOISE_GATE to 0.4f, PedalType.BOOST to 0.4f, PedalType.METAL_DIST to 0.6f), guitar = GuitarModel.SUPERSTRAT),
+    FxPreset("Djent 7", AmpModel.RECTO, listOf(PedalType.NOISE_GATE to 0.6f, PedalType.COMPRESSOR to 0.4f), guitar = GuitarModel.SEVEN),
+    FxPreset("Blues Lead", AmpModel.TWEED, listOf(PedalType.OVERDRIVE to 0.35f, PedalType.DELAY to 0.25f, PedalType.REVERB to 0.3f), guitar = GuitarModel.STRAT),
+    FxPreset("Jazz Club", AmpModel.JAZZ, listOf(PedalType.COMPRESSOR to 0.3f, PedalType.REVERB to 0.3f), guitar = GuitarModel.JAZZBOX),
+    FxPreset("Acoustic Folk", AmpModel.ACOUSTIC_DI, listOf(PedalType.COMPRESSOR to 0.3f, PedalType.REVERB to 0.35f), guitar = GuitarModel.ACOUSTIC),
+    FxPreset("Nylon Spanish", AmpModel.ACOUSTIC_DI, listOf(PedalType.REVERB to 0.4f), guitar = GuitarModel.NYLON),
+    FxPreset("Shoegaze Wall", AmpModel.FUZZ_STACK, listOf(PedalType.FUZZ to 0.6f, PedalType.FLANGER to 0.5f, PedalType.REVERB to 0.8f), guitar = GuitarModel.TWELVE),
+    FxPreset("Wah Solo", AmpModel.BRIT, listOf(PedalType.WAH to 0.7f, PedalType.OVERDRIVE to 0.5f, PedalType.DELAY to 0.3f), guitar = GuitarModel.LESPAUL),
+    FxPreset("80s Chorus Clean", AmpModel.CHIME, listOf(PedalType.CHORUS to 0.6f, PedalType.DELAY to 0.35f), guitar = GuitarModel.STRAT),
+    FxPreset("Psych Phaser", AmpModel.TWEED, listOf(PedalType.PHASER to 0.6f, PedalType.FUZZ to 0.4f), guitar = GuitarModel.HOLLOW),
+    FxPreset("Slide Resonator", AmpModel.CLEAN, listOf(PedalType.VIBRATO to 0.3f, PedalType.REVERB to 0.3f), guitar = GuitarModel.RESO),
+    FxPreset("Bass Grit", AmpModel.BASS, listOf(PedalType.COMPRESSOR to 0.5f, PedalType.OVERDRIVE to 0.3f), guitar = GuitarModel.BASS),
+    FxPreset("Fretless Smooth", AmpModel.BASS, listOf(PedalType.CHORUS to 0.3f, PedalType.COMPRESSOR to 0.4f), guitar = GuitarModel.FRETLESS),
+    FxPreset("Octave Fuzz Bass", AmpModel.BASS, listOf(PedalType.OCTAVER to 0.5f, PedalType.FUZZ to 0.4f), guitar = GuitarModel.JAZZ_BASS),
+    FxPreset("Synth Lead Scream", AmpModel.SYNTH_DRIVE, listOf(PedalType.DISTORTION to 0.4f, PedalType.DELAY to 0.4f), waveform = SynthWaveform.SUPERSAW),
+    FxPreset("Lo-Fi Keys", AmpModel.NONE, listOf(PedalType.LOFI to 0.6f, PedalType.BITCRUSH to 0.25f, PedalType.REVERB to 0.3f), waveform = SynthWaveform.EPIANO),
+    FxPreset("Dreamy Pad", AmpModel.NONE, listOf(PedalType.CHORUS to 0.5f, PedalType.REVERB to 0.7f), waveform = SynthWaveform.STRINGS),
+    FxPreset("Reese Destroyer", AmpModel.SYNTH_DRIVE, listOf(PedalType.DISTORTION to 0.5f, PedalType.PHASER to 0.4f), waveform = SynthWaveform.REESE),
+    FxPreset("Robot Ring", AmpModel.NONE, listOf(PedalType.RING_MOD to 0.5f, PedalType.BITCRUSH to 0.4f)),
+    FxPreset("Vocal Polish", AmpModel.NONE, listOf(PedalType.COMPRESSOR to 0.5f, PedalType.DELAY to 0.15f, PedalType.REVERB to 0.3f)),
+)

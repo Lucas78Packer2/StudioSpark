@@ -92,7 +92,7 @@ fun DawApp(vm: StudioViewModel = viewModel()) {
             if (dock != Dock.NONE) Box(Modifier.fillMaxWidth().height(if (wide) 300.dp else 330.dp).background(Chrome)) {
                 when (dock) { Dock.MIX -> MixWindow(vm); Dock.PIANO -> PianoRoll(vm); Dock.STEPS -> StepSeq(vm); else -> {} }
             }
-            if (vm.status.isNotEmpty()) Text(vm.status, color = Dim, fontSize = 11.sp, maxLines = 1, modifier = Modifier.fillMaxWidth().background(Color.Black).padding(horizontal = 8.dp, vertical = 2.dp).semantics { liveRegion = LiveRegionMode.Polite })
+            if (vm.status.isNotEmpty()) Text("● " + vm.status, color = Teal.copy(alpha = 0.85f), fontSize = 11.sp, maxLines = 1, modifier = Modifier.fillMaxWidth().background(Color(0xFF0E0F12)).padding(horizontal = 10.dp, vertical = 4.dp).semantics { liveRegion = LiveRegionMode.Polite })
         }
     }
     if (showSession) Dialog(onDismissRequest = { showSession = false }) { Surface(color = Panel, shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxHeight(0.9f)) { SessionDialog(vm) } }
@@ -102,7 +102,7 @@ fun DawApp(vm: StudioViewModel = viewModel()) {
 // ---------------- Transport ----------------
 @Composable
 fun TBtn(icon: ImageVector, desc: String, active: Boolean = false, tint: Color = Color.White, activeColor: Color = Orange, onClick: () -> Unit) {
-    Box(Modifier.padding(2.dp).size(44.dp).clip(RoundedCornerShape(4.dp)).background(if (active) activeColor else Color(0xFF34363C))
+    Box(Modifier.padding(3.dp).size(44.dp).clip(RoundedCornerShape(10.dp)).background(if (active) activeColor else Color(0xFF2E3036))
         .clickable(onClickLabel = desc) { onClick() }.semantics { contentDescription = desc; role = Role.Button; if (active) stateDescription = "on" }, contentAlignment = Alignment.Center) {
         Icon(icon, null, tint = if (active) Color.Black else tint) }
 }
@@ -112,14 +112,14 @@ fun TransportBar(vm: StudioViewModel, midi: Int, onSession: () -> Unit, onTuner:
     val s = vm.session; val ctx = LocalContext.current
     val perm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) vm.startRecording() }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { u -> vm.importAudio(u, false) } }
-    Row(Modifier.fillMaxWidth().background(Brush()).horizontalScroll(rememberScrollState()).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF24252B), Color(0xFF16171B)))).border(1.dp, Orange.copy(alpha = 0.2f)).horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
         androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.brand_sparknote), "StudioSpark", Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)))
         Text(" StudioSpark", color = Orange, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
         Column(Modifier.clickable(onClickLabel = "Open session menu") { onSession() }.padding(horizontal = 6.dp)) {
             Text(s.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, modifier = Modifier.widthIn(max = 160.dp))
             Text("Session ▾", color = Orange, fontSize = 10.sp) }
-        TBtn(Icons.Default.Undo, "Undo") { vm.undo() }; TBtn(Icons.Default.Redo, "Redo") { vm.redo() }
-        Spacer(Modifier.width(6.dp))
+        TBtn(Icons.Default.Undo, "Undo", tint = if (vm.canUndo) Color.White else Dim) { vm.undo() }; TBtn(Icons.Default.Redo, "Redo", tint = if (vm.canRedo) Color.White else Dim) { vm.redo() }
+        Box(Modifier.padding(horizontal = 6.dp).width(1.dp).height(32.dp).background(Color(0xFF3E4148)))
         TBtn(Icons.Default.SkipPrevious, "Return to start") { vm.seek(0.0) }
         TBtn(Icons.Default.FastRewind, "Rewind one bar") { vm.seek((vm.playhead - s.barSeconds).coerceAtLeast(0.0)) }
         TBtn(Icons.Default.Stop, "Stop") { vm.stop(); if (vm.isRecording) vm.stopRecording() }
@@ -129,6 +129,7 @@ fun TransportBar(vm: StudioViewModel, midi: Int, onSession: () -> Unit, onTuner:
             if (vm.isRecording) vm.stopRecording() else if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) { vm.startRecording(); if (!vm.isPlaying) vm.play() } else perm.launch(Manifest.permission.RECORD_AUDIO) }
         TBtn(Icons.Default.Repeat, "Loop", active = s.isLoopEnabled, activeColor = Teal) { vm.update { it.copy(isLoopEnabled = !it.isLoopEnabled, loopEnd = if (it.loopEnd <= it.loopStart) it.barSeconds * 2 else it.loopEnd) } }
         TBtn(Icons.Default.Piano, "MIDI and pad capture into armed track", active = vm.liveCapture, activeColor = Rec) { vm.liveCapture = !vm.liveCapture }
+        Box(Modifier.padding(horizontal = 6.dp).width(1.dp).height(32.dp).background(Color(0xFF3E4148)))
         // Counter
         Column(Modifier.padding(horizontal = 8.dp).clip(RoundedCornerShape(4.dp)).background(Color.Black).padding(horizontal = 10.dp, vertical = 2.dp)
             .semantics(mergeDescendants = true) { contentDescription = "Position bar ${barsBeats(s, vm.playhead)}, ${fmt(vm.playhead)}" }) {
@@ -158,11 +159,11 @@ fun TransportBar(vm: StudioViewModel, midi: Int, onSession: () -> Unit, onTuner:
 
 @Composable
 fun DockBar(dock: Dock, onDock: (Dock) -> Unit) {
-    Row(Modifier.fillMaxWidth().background(Color.Black).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF16171B), Color.Black))).border(1.dp, Orange.copy(alpha = 0.25f)).padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("WINDOW", color = Dim, fontSize = 10.sp, modifier = Modifier.padding(end = 6.dp))
         Dock.values().forEach { d -> val on = dock == d
             Text(d.label, color = if (on) Color.Black else Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(2.dp).clip(RoundedCornerShape(3.dp)).background(if (on) Orange else Chrome).clickable { onDock(d) }.padding(horizontal = 12.dp, vertical = 8.dp)
+                modifier = Modifier.padding(3.dp).clip(RoundedCornerShape(8.dp)).background(if (on) Orange else Chrome).clickable { onDock(d) }.padding(horizontal = 16.dp, vertical = 9.dp)
                     .semantics { role = Role.Tab; selected = on }) }
     }
 }
@@ -214,12 +215,12 @@ fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedTracks(l: List<Tr
     items(l.size, key = { l[it].id }) { c(it, l[it]) }
 
 @Composable fun ToolChip(t: String, onClick: () -> Unit) = Text(t, color = Color.White, fontSize = 12.sp,
-    modifier = Modifier.padding(2.dp).heightIn(min = 36.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF34363C)).clickable { onClick() }.padding(horizontal = 10.dp, vertical = 9.dp).semantics { role = Role.Button })
+    modifier = Modifier.padding(3.dp).heightIn(min = 36.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF2E3036)).border(1.dp, Color(0xFF3E4148), RoundedCornerShape(8.dp)).clickable { onClick() }.padding(horizontal = 10.dp, vertical = 9.dp).semantics { role = Role.Button })
 
 @Composable
 fun Ruler(vm: StudioViewModel, zoom: Float, totalW: Dp, hs: ScrollState) {
     val s = vm.session; val d = LocalDensity.current.density
-    Box(Modifier.horizontalScroll(hs).width(totalW).height(30.dp).background(Color(0xFF202126))
+    Box(Modifier.horizontalScroll(hs).width(totalW).height(32.dp).background(Color(0xFF1B1C21))
         .pointerInput(zoom) { detectTapGestures { o -> vm.seek((o.x / d / zoom).toDouble()) } }.semantics { contentDescription = "Timeline ruler, tap to move playhead" }) {
         Canvas(Modifier.fillMaxSize()) {
             if (s.isLoopEnabled) drawRect(Teal.copy(alpha = 0.35f), Offset((s.loopStart * zoom).toFloat() * d, 0f), Size(((s.loopEnd - s.loopStart) * zoom).toFloat() * d, size.height / 2))
@@ -229,14 +230,14 @@ fun Ruler(vm: StudioViewModel, zoom: Float, totalW: Dp, hs: ScrollState) {
             val px = (vm.playhead * zoom).toFloat() * d; drawLine(Orange, Offset(px, 0f), Offset(px, size.height), 4f)
         }
         val bars = (s.length / s.barSeconds).toInt() + 2
-        for (b in 0 until bars) Text("${b + 1}", color = Color.White, fontSize = 10.sp, modifier = Modifier.offset(x = (b * s.barSeconds * zoom).dp + 3.dp))
+        for (b in 0 until bars) Text("${b + 1}", color = Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.offset(x = (b * s.barSeconds * zoom).dp + 3.dp))
     }
 }
 
 @Composable
 fun TrackHeader(vm: StudioViewModel, t: Track, i: Int) {
     val sel = vm.selectedTrackId == t.id; var menu by remember { mutableStateOf(false) }
-    Row(Modifier.width(168.dp).fillMaxHeight().background(if (sel) Color(0xFF34363C) else Chrome).clickable(onClickLabel = "Select track and open or close keyboard") {
+    Row(Modifier.width(176.dp).fillMaxHeight().padding(vertical = 1.dp).clip(RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp)).background(if (sel) Color(0xFF34363C) else Chrome).border(if (sel) 1.dp else 0.dp, if (sel) Orange.copy(alpha = 0.6f) else Color.Transparent, RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp)).clickable(onClickLabel = "Select track and open or close keyboard") {
         vm.selectedTrackId = t.id
         if (t.kind == TrackKind.LYRICS) {
             vm.keyboardTrackId = null
@@ -250,6 +251,7 @@ fun TrackHeader(vm: StudioViewModel, t: Track, i: Int) {
         Column(Modifier.padding(4.dp).weight(1f)) {
             Text(t.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             val voice = when (t.kind) { TrackKind.AUDIO -> "Audio"; TrackKind.SYNTH -> "Inst · ${t.waveform.label}"; TrackKind.GUITAR -> "${t.guitar.label} → ${t.amp.label}"; TrackKind.LYRICS -> "Lyrics · ${t.voiceGender.label} ${t.vocalStyle.label}" }
+            if (t.kind == TrackKind.LYRICS) VocalLiveStrip(vm, t, compact = true)
             Box { Text("$voice ▾", color = Teal, fontSize = 10.sp, maxLines = 1, modifier = Modifier.clickable(onClickLabel = "Assign instrument or sound to ${t.name}") { menu = true })
                 AssignMenu(vm, t, menu) { menu = false } }
             Row { MSR("M", "Mute ${t.name}", t.isMuted, Mute) { vm.updateTrack(t.id) { it.copy(isMuted = !it.isMuted) } }
@@ -460,16 +462,14 @@ fun StepSeq(vm: StudioViewModel) = Column(Modifier.verticalScroll(rememberScroll
     KitPicker(vm); DrumGrid(vm)
 }
 @Composable
-fun KitPicker(vm: StudioViewModel) = Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-    Text("KIT", color = Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 6.dp))
-    DrumKit.values().forEach { k -> FilterChip(selected = vm.session.kit == k, onClick = { vm.update { it.copy(kit = k) }; vm.triggerPad(DrumPad.KICK) }, label = { Text(k.label) }, modifier = Modifier.padding(end = 4.dp)) }
-}
+fun KitPicker(vm: StudioViewModel) { val sel = vm.session.tracks.firstOrNull { it.id == vm.selectedTrackId }
+    KitSelector(sel?.kit ?: vm.session.kit) { k -> vm.selectKit(sel?.id, k) } }
 
 // ---------------- Drawers ----------------
 @Composable
 fun DrawerPanel(vm: StudioViewModel, d: Drawer, close: () -> Unit) = Column(Modifier.fillMaxSize()) {
-    Row(Modifier.fillMaxWidth().background(Chrome).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(d.icon, null, tint = Orange); Text("  ${d.label}", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).semantics { heading() })
+    Row(Modifier.fillMaxWidth().background(Chrome).border(1.dp, Orange.copy(alpha = 0.3f)).padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(d.icon, null, tint = Orange); Text("  ${d.label.uppercase()}", color = Color.White, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp, modifier = Modifier.weight(1f).semantics { heading() })
         IconButton(onClick = close) { Icon(Icons.Default.Close, "Close ${d.label}", tint = Color.White) } }
     val sel = vm.session.tracks.firstOrNull { it.id == vm.selectedTrackId }
     Text("Target track: ${sel?.name ?: "new track"}", color = Teal, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp))
@@ -516,10 +516,10 @@ fun SliceDialog(vm: StudioViewModel, item: SampleLibraryItem, close: () -> Unit)
 @Composable
 fun InstrumentRack(vm: StudioViewModel, sel: Track?) = Column(Modifier.verticalScroll(rememberScrollState()).padding(6.dp)) {
     KitPicker(vm)
-    Text("Drum pads (${vm.session.kit.label}) — tap to play; ⤓ puts the hit on the target track at the playhead", color = Dim, fontSize = 10.sp)
+    Text("Drum pads (${(sel?.kit ?: vm.session.kit).label}) — tap to play; ⤓ puts the hit on the target track at the playhead", color = Dim, fontSize = 10.sp)
     DrumPad.values().toList().chunked(4).forEach { row -> Row { row.forEach { p ->
         Column(Modifier.weight(1f).padding(2.dp)) {
-            Box(Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(4.dp)).background(if (p.ordinal % 2 == 0) Color(0xFF8A3E0E) else Color(0xFF0F5E57)).clickable { vm.triggerPad(p) }
+            Box(Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(4.dp)).background(if (p.ordinal % 2 == 0) Color(0xFF8A3E0E) else Color(0xFF0F5E57)).clickable { vm.triggerPad(p, sel?.kit) }
                 .semantics { contentDescription = "${p.label} pad"; role = Role.Button }, contentAlignment = Alignment.Center) { Text(p.label, color = Color.White, fontSize = 11.sp) }
             Text("⤓ track", color = Teal, fontSize = 10.sp, modifier = Modifier.clickable(onClickLabel = "Place ${p.label} on track") {
                 val inst = InstrumentLibrary.first { it.pad == p }; if (sel != null) vm.assignInstrument(sel.id, inst) else { vm.addTrack(TrackKind.AUDIO); vm.assignInstrument(vm.session.tracks.last().id, inst) } }.padding(4.dp))
@@ -544,37 +544,34 @@ fun InstrumentRack(vm: StudioViewModel, sel: Track?) = Column(Modifier.verticalS
 }
 
 @Composable
-fun GearEditor(vm: StudioViewModel, t: Track) {
-    Text("${t.name}", color = Color.White, fontWeight = FontWeight.Bold)
-    Text("PRESETS (guitar/voice + amp + pedals, applied to this track)", color = Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+fun GearEditor(vm: StudioViewModel, t0: Track) {
+    val t = vm.session.tracks.firstOrNull { it.id == t0.id } ?: t0
+    val testPitch = if (t.guitar.label.contains("Bass") || SongAI.role(t) == SongAI.Role.BASS) 40 else 52
+    fun live(f: (Track) -> Track) { vm.updateTrack(t.id, f); vm.session.tracks.firstOrNull { it.id == t.id }?.let { vm.triggerTrackNote(it, testPitch) } }
+    var ampMenu by remember { mutableStateOf(false) }; var addMenu by remember { mutableStateOf(false) }
+    Text("LIVE RIG — ${t.name}  (changes are heard on the next note while you play)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
     Row(Modifier.horizontalScroll(rememberScrollState())) { FxPresets.forEach { p -> ToolChip(p.name) { vm.applyPreset(t.id, p) } } }
-    Text("GUITAR", color = Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-    Row(Modifier.horizontalScroll(rememberScrollState())) { GuitarModel.values().forEach { g -> FilterChip(selected = t.kind == TrackKind.GUITAR && t.guitar == g,
-        onClick = { vm.updateTrack(t.id) { it.copy(kind = TrackKind.GUITAR, guitar = g) }; vm.triggerTrackNote(t.copy(kind = TrackKind.GUITAR, guitar = g), 52) },
-        label = { Text(g.label) }, modifier = Modifier.padding(end = 4.dp)) } }
-    Text("AMP", color = Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
-    Row(Modifier.horizontalScroll(rememberScrollState())) { AmpModel.values().forEach { a ->
-        Column(Modifier.padding(3.dp).width(92.dp).clip(RoundedCornerShape(4.dp)).background(if (t.amp == a) Color(0xFF3A2A12) else Color(0xFF2A2B30)).border(2.dp, if (t.amp == a) Orange else Color.Transparent, RoundedCornerShape(4.dp))
-            .clickable { vm.updateTrack(t.id) { it.copy(amp = a) }; vm.triggerTrackNote(t.copy(amp = a), 52) }.padding(6.dp).semantics(mergeDescendants = true) { role = Role.RadioButton; selected = t.amp == a }) {
-            Box(Modifier.fillMaxWidth().height(26.dp).background(Color(0xFF111111)).border(1.dp, Color(0xFF555555))) { Text("▦▦▦", color = Color(0xFF444444), modifier = Modifier.align(Alignment.Center)) }
-            Text(a.label, color = Color.White, fontSize = 10.sp, maxLines = 2) } } }
-    Text("PEDALBOARD (signal flows left → right into the amp)", color = Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
-    Row(Modifier.horizontalScroll(rememberScrollState()).background(Color(0xFF151515)).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("IN ▸", color = Dim, fontSize = 10.sp)
-        t.pedals.forEach { p -> val c = Color(p.type.color)
-            Column(Modifier.padding(4.dp).width(96.dp).clip(RoundedCornerShape(6.dp)).background(if (p.on) c else c.copy(alpha = 0.35f)).padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(p.type.label, color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                Knob("Amount", p.amount, 0f..1f, "${(p.amount * 100).roundToInt()}%") { v -> vm.updatePedal(t.id, p.id) { it.copy(amount = v) } }
-                Box(Modifier.size(28.dp).clip(CircleShape).background(if (p.on) Color(0xFFFF5252) else Color(0xFF444444)).clickable { vm.updatePedal(t.id, p.id) { it.copy(on = !it.on) } }
-                    .semantics { contentDescription = "${p.type.label} footswitch"; stateDescription = if (p.on) "on" else "bypassed"; role = Role.Switch })
-                Row { SmallBtn("◀", "Move ${p.type.label} earlier") { vm.movePedal(t.id, p.id, -1) }; SmallBtn("✕", "Remove ${p.type.label}") { vm.removePedal(t.id, p.id) }; SmallBtn("▶", "Move ${p.type.label} later") { vm.movePedal(t.id, p.id, 1) } }
-            } }
-        Text("▸ ${t.amp.label}", color = Dim, fontSize = 10.sp)
+    Text("INSTRUMENT", color = Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+    Row(Modifier.horizontalScroll(rememberScrollState())) {
+        InstrumentLibrary.filter { it.waveform != null }.take(12).forEach { i -> VisualInstrument(t, t.kind == TrackKind.SYNTH && t.waveform == i.waveform, null, i.name) {
+            vm.updateTrack(t.id) { it.copy(kind = if (it.kind == TrackKind.AUDIO || it.kind == TrackKind.LYRICS) it.kind else TrackKind.SYNTH, waveform = i.waveform!!) }; vm.trigger(i) } }
+        GuitarModel.values().forEach { g -> VisualInstrument(t, t.kind == TrackKind.GUITAR && t.guitar == g, g, g.label) {
+            vm.updateTrack(t.id) { it.copy(kind = TrackKind.GUITAR, guitar = g) }; vm.triggerTrackNote(t.copy(kind = TrackKind.GUITAR, guitar = g), if (g.label.contains("Bass")) 33 else 52) } }
     }
-    Text("Add pedal:", color = Dim, fontSize = 11.sp)
-    Row(Modifier.horizontalScroll(rememberScrollState())) { PedalType.values().forEach { p -> ToolChip("+ ${p.label}") { vm.addPedal(t.id, p) } } }
+    Text("PEDALBOARD  IN ▸ … ▸ AMP (stomp to bypass, turn knobs live)", color = Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
+    Row(Modifier.horizontalScroll(rememberScrollState()).clip(RoundedCornerShape(8.dp)).background(Color(0xFF2B2B2B)).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        t.pedals.forEach { p -> VisualPedal(p, { v -> vm.updatePedal(t.id, p.id) { it.copy(amount = v) }; vm.session.tracks.firstOrNull { it.id == t.id }?.let { vm.triggerTrackNote(it, testPitch) } },
+            { v -> vm.updatePedal(t.id, p.id) { it.copy(tone = v) }; vm.session.tracks.firstOrNull { it.id == t.id }?.let { vm.triggerTrackNote(it, testPitch) } },
+            { vm.updatePedal(t.id, p.id) { it.copy(on = !it.on) }; vm.session.tracks.firstOrNull { it.id == t.id }?.let { vm.triggerTrackNote(it, testPitch) } }) {
+            Row { SmallBtn("◀", "Move ${p.type.label} earlier") { vm.movePedal(t.id, p.id, -1) }; SmallBtn("✕", "Remove ${p.type.label}") { vm.removePedal(t.id, p.id) }; SmallBtn("▶", "Move ${p.type.label} later") { vm.movePedal(t.id, p.id, 1) } } } }
+        Box { ToolChip("+ Pedal") { addMenu = true }
+            DropdownMenu(addMenu, { addMenu = false }) { PedalType.values().forEach { p -> DropdownMenuItem({ Text(p.label) }, { vm.addPedal(t.id, p); addMenu = false }) } } }
+    }
+    Text("AMP", color = Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
+    Box { VisualAmp(t, { k, v -> live { tr -> when (k) { "Gain" -> tr.copy(ampGain = v); "Bass" -> tr.copy(ampBass = v); "Mid" -> tr.copy(ampMid = v); "Treble" -> tr.copy(ampTreble = v); "Presence" -> tr.copy(ampPresence = v); else -> tr.copy(ampMaster = v) } } }) { ampMenu = true }
+        DropdownMenu(ampMenu, { ampMenu = false }) { AmpModel.values().forEach { a -> DropdownMenuItem({ Text(a.label) }, { live { it.copy(amp = a) }; ampMenu = false }) } } }
     Row { ToolChip("▶ Test E2") { vm.triggerTrackNote(t, 40) }; ToolChip("▶ Test A2") { vm.triggerTrackNote(t, 45) }; ToolChip("▶ Test E3") { vm.triggerTrackNote(t, 52) } }
-    Text("Chain is applied on the track insert during playback and bounce.", color = Dim, fontSize = 10.sp)
+    Text("Synthesized amp/pedal models (brand names describe the tone style; no licensed samples or IRs). Chain applies live, on playback and bounce.", color = Dim, fontSize = 10.sp)
 }
 
 // ---------------- Session dialog ----------------
@@ -691,20 +688,17 @@ fun TrackKeyboard(vm: StudioViewModel, t: Track, idx: Int) {
             (0 until 14).forEach { w -> blackAfter[w % 7]?.let { semi -> val pitch = 12 * (oct + 1) + 12 * (w / 7) + semi
                 PianoKey(vm, t, pitch, true, hints, Modifier.offset(x = ww * (w + 1) - ww * 0.3f).width(ww * 0.6f).fillMaxHeight(0.6f)) } }
         }
-        Text("DRUM PADS (${vm.session.kit.label}) – recorded into the step pattern while ● Record runs", color = Dim, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 6.dp))
+        KitSelector(t.kit) { k -> vm.selectKit(t.id, k) }
+        Text("DRUM PADS (${t.kit.label}) – recorded into the step pattern while ● Record runs", color = Dim, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 6.dp))
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp)) { DrumPad.values().forEach { p ->
-            Box(Modifier.padding(2.dp).size(64.dp, 40.dp).clip(RoundedCornerShape(4.dp)).background(if (p.ordinal % 2 == 0) Color(0xFF8A3E0E) else Color(0xFF0F5E57)).clickable { vm.triggerPad(p) }
+            Box(Modifier.padding(2.dp).size(64.dp, 40.dp).clip(RoundedCornerShape(4.dp)).background(if (p.ordinal % 2 == 0) Color(0xFF8A3E0E) else Color(0xFF0F5E57)).clickable { vm.triggerPad(p, t.kit) }
                 .semantics { contentDescription = "${p.label} pad"; role = Role.Button }, contentAlignment = Alignment.Center) { Text(p.label, color = Color.White, fontSize = 10.sp) } } }
-        var rigOpen by remember(t.id) { mutableStateOf(false) }
+        var rigOpen by remember(t.id) { mutableStateOf(true) }
         Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("RIG HOOKUP:  🎸 ${if (t.kind == TrackKind.GUITAR) t.guitar.label else t.waveform.label} ▸ ${t.pedals.count { it.on }} pedals ▸ ${t.amp.label} ▸ OUT", color = Teal, fontSize = 11.sp, modifier = Modifier.weight(1f), maxLines = 1)
             ToolChip(if (rigOpen) "Rig ▴" else "Rig ▾") { rigOpen = !rigOpen } }
-        if (rigOpen) Column(Modifier.fillMaxWidth().heightIn(max = 260.dp).verticalScroll(rememberScrollState()).padding(horizontal = 6.dp)) {
-            Text("INSTRUMENT INPUT", color = Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Row(Modifier.horizontalScroll(rememberScrollState())) { InstrumentLibrary.filter { it.waveform != null }.forEach { i ->
-                FilterChip(t.kind != TrackKind.GUITAR && t.waveform == i.waveform, { vm.updateTrack(t.id) { it.copy(kind = if (it.kind == TrackKind.AUDIO) TrackKind.AUDIO else TrackKind.SYNTH, waveform = i.waveform!!) }; vm.trigger(i) }, { Text(i.name) }, Modifier.padding(end = 4.dp)) } }
-            Row(Modifier.horizontalScroll(rememberScrollState())) { GuitarModel.values().forEach { g ->
-                FilterChip(t.kind == TrackKind.GUITAR && t.guitar == g, { vm.updateTrack(t.id) { it.copy(kind = TrackKind.GUITAR, guitar = g) }; vm.triggerTrackNote(t.copy(kind = TrackKind.GUITAR, guitar = g), if (g.label.contains("Bass")) 33 else 52) }, { Text(g.label) }, Modifier.padding(end = 4.dp)) } }
+        if (rigOpen) Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()).padding(horizontal = 6.dp)) {
+            if (false) Text("INSTRUMENT INPUT", color = Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             GearEditor(vm, vm.session.tracks.firstOrNull { it.id == t.id } ?: t)
         }
         } // scrollable body
@@ -754,8 +748,13 @@ fun LyricsPanel(vm: StudioViewModel, t: Track) {
         }
         Text("AI thinks this song is: ${t.songInfo.ifBlank { "(tap Analyze)" }}", color = Teal, fontSize = 11.sp)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(theme, { theme = it }, label = { Text("Theme / prompt (e.g. love at night)") }, singleLine = true, modifier = Modifier.weight(1f))
-            ToolChip("AI write") { vm.rewriteLyrics(t.id, theme) }; ToolChip("Analyze") { vm.reanalyze(t.id) } }
+            OutlinedTextField(theme, { theme = it }, label = { Text("Theme (optional – blank lets AI invent)") }, singleLine = true, modifier = Modifier.weight(1f))
+            ToolChip("Analyze") { vm.reanalyze(t.id) } }
+        VocalLiveStrip(vm, t)
+        Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+            ToolChip("✦ AI song concept") { vm.inventConcept(t.id, theme) }
+            ToolChip("✎ AI write lyrics") { vm.rewriteLyrics(t.id, theme) }
+            ToolChip("🎤 AI write + sing") { vm.writeAndSing(t.id, theme) } }
         Text("Lyric sheet – edit freely. [Section] lines add a bar of space.", color = Dim, fontSize = 10.sp)
         OutlinedTextField(sheet, { sheet = it; vm.updateTrack(t.id) { tr -> tr.copy(lyrics = it) } }, modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp),
             textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp))
@@ -763,9 +762,9 @@ fun LyricsPanel(vm: StudioViewModel, t: Track) {
         Row(Modifier.horizontalScroll(rememberScrollState())) { VoiceGender.values().forEach { g -> FilterChip(t.voiceGender == g, { vm.updateTrack(t.id) { it.copy(voiceGender = g) } }, { Text(g.label) }, Modifier.padding(end = 4.dp)) } }
         Row(Modifier.horizontalScroll(rememberScrollState())) { VocalStyle.values().forEach { v -> FilterChip(t.vocalStyle == v, { vm.updateTrack(t.id) { it.copy(vocalStyle = v) } }, { Text(v.label) }, Modifier.padding(end = 4.dp)) } }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ToolChip(if (t.clips.isEmpty()) "🎤 AI sing lyrics" else "🎤 Re-sing updated lyrics") { vm.updateTrack(t.id) { it.copy(lyrics = sheet) }; vm.singLyrics(t.id) }
+            ToolChip(if (t.clips.isEmpty()) "🎤 AI sing" else "🎤 AI re-sing") { vm.updateTrack(t.id) { it.copy(lyrics = sheet) }; vm.singLyrics(t.id) }
             ToolChip("Vocal Polish FX") { vm.applyPreset(t.id, FxPresets.first { it.name == "Vocal Polish" }) }
             Text("  ${vm.voiceInfo}", color = Dim, fontSize = 10.sp) }
-        Text("Vocals start at the playhead, one line per 2 bars. It's a natural voice speaking the lines in rhythm, not pitched singing. Pedals and amps on this track also process the vocal.", color = Dim, fontSize = 10.sp)
+        Text("Vocals start at the playhead, one line per 2 bars. Your phone's speech engine voices each line in rhythm onto this track – a natural voice, not pitched studio singing or a licensed vocal model. Pedals and amps on this track also process the vocal.", color = Dim, fontSize = 10.sp)
     }
 }
