@@ -137,8 +137,8 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
     private fun rerenderIfPlaying() { if (!player.isPlaying) return; val s = session
         renderJob?.cancel(); renderJob = viewModelScope.launch(Dispatchers.Default) { delay(120)
             val (l, r) = MixRenderer.render(s, stemsDir); if (isActive && player.isPlaying) player.swap(l, r, loopFor(s)) } }
-    fun pause() = player.stop()
-    fun stop() { player.stop(); player.playhead = 0.0 }
+    fun pause() { finishKeyboardTake(); player.stop(); isPlaying = false }
+    fun stop() { finishKeyboardTake(); player.stop(); isPlaying = false; player.playhead = 0.0 }
     fun seek(t: Double) { val was = player.isPlaying; player.stop(); player.playhead = t; if (was) play() }
 
     // ---- Bounce / export (MixBounceRenderer + MixExportStorage) ----
@@ -220,17 +220,24 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
             val x = when (t.kind) { TrackKind.GUITAR -> Fx.guitarNote(t.guitar, pitch, 0.6); else -> InstrumentSoundGenerator.note(t.waveform, pitch, if (t.waveform == SynthWaveform.STRINGS || t.waveform == SynthWaveform.CHOIR) 0.9 else 0.45, acid = t.name.contains("303") || t.name.contains("Acid", true)) }
             t.pedals.forEach { Fx.pedal(x, it, session.tempoBPM) }; Fx.amp(x, t); player.oneShot(x, session.masterVolume * t.volume) }
         lastKeyPitch = pitch
-        return if (isPlaying && (liveCapture || armedTrackId == trackId)) playhead else null
+        // Free-play: sound only. Notes are captured only while keyboard-recording, or when this track is armed during playback.
+        return if (isPlaying && (kbRecording && armedTrackId == trackId || (liveCapture && armedTrackId == trackId))) playhead else null
     }
     /** One-tap record on the keyboard panel: arm this track, enable capture, start transport. Tap again to stop. */
-    private val takeNotes = mutableListOf<SynthNote>(); private var kbRecording = false
+    private val takeNotes = mutableListOf<SynthNote>()
+    var isKeyboardRecording by mutableStateOf(false); private set
+    private var kbRecording: Boolean get() = isKeyboardRecording; set(v) { isKeyboardRecording = v }
+    private var takeStart = 0.0
+    /** Finalize an in-progress keyboard take (from Record toggle, transport Stop, or Pause). */
+    private fun finishKeyboardTake() { if (!kbRecording) return
+        val trackId = armedTrackId; kbRecording = false; liveCapture = false
+        val t = session.tracks.firstOrNull { it.id == trackId }
+        if (takeNotes.isNotEmpty() && t != null) { pendingTake = PendingTake(t.id, t.name, notes = takeNotes.toList()); status = "Take recorded – place it on ${t.name}?" }
+        else status = "Stopped recording – no notes played"
+        takeNotes.clear(); player.playhead = takeStart }
     fun toggleTrackRecord(trackId: String) {
-        if (kbRecording && armedTrackId == trackId) { pause(); liveCapture = false; kbRecording = false
-            val t = session.tracks.firstOrNull { it.id == trackId }
-            if (takeNotes.isNotEmpty() && t != null) { pendingTake = PendingTake(trackId, t.name, notes = takeNotes.toList()); status = "Take recorded – place it on ${t.name}?" }
-            else status = "Stopped recording – no notes played"
-            takeNotes.clear(); return }
-        takeNotes.clear(); kbRecording = true
+        if (kbRecording) { val same = armedTrackId == trackId; pause(); if (same) return }
+        takeNotes.clear(); pendingTake = null; kbRecording = true; takeStart = player.playhead
         armedTrackId = trackId; liveCapture = true; if (!isPlaying) play(); status = "● Recording – play the keys"
     }
     // ---- Pending takes: ask before placing ----
@@ -240,7 +247,7 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
         if (p.clip != null) { if (p.trackId != null && session.tracks.any { it.id == p.trackId }) updateTrack(p.trackId) { it.copy(isMuted = false, clips = it.clips + p.clip) }
             else update { it.copy(tracks = it.tracks + Track(name = "Vocal Take ${it.tracks.size + 1}", clips = listOf(p.clip))) } }
         if (p.notes.isNotEmpty() && p.trackId != null) updateTrack(p.trackId) { it.copy(isMuted = false, notes = it.notes + p.notes) }
-        status = "Your take is now part of your piece on ${p.trackName}" }
+        rerenderIfPlaying(); status = "Your take is now part of your piece on ${p.trackName} – press Play to hear it" }
     fun discardPendingTake() { player.stopPreview(); pendingTake = null; status = "Take discarded" }
     fun auditionPendingTake() { val p = pendingTake ?: return; status = "Listening privately – not on the track yet"; viewModelScope.launch(Dispatchers.Default) {
         if (p.clip != null) player.audition(AudioDecoder.decode(File(stemsDir, p.clip.fileName)), session.masterVolume)

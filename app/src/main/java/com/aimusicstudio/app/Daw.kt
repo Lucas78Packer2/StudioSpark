@@ -663,7 +663,7 @@ fun TrackKeyboard(vm: StudioViewModel, t: Track, idx: Int) {
             }
             Box(Modifier.size(10.dp).background(trackColor(idx)))
             Text(" ${t.name} keys", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1)
-            Text(if (armed && vm.isPlaying) "● REC" else if (armed) "armed" else "", color = Rec, fontSize = 11.sp)
+            Text(if (armed && vm.isKeyboardRecording) "● REC" else if (armed) "armed" else "", color = Rec, fontSize = 11.sp)
             IconButton(onClick = { closeKeyboard() }, modifier = Modifier.size(40.dp).semantics { contentDescription = "Close keyboard" }) {
                 Icon(Icons.Default.Close, "Close keyboard", tint = Color.White)
             }
@@ -672,7 +672,7 @@ fun TrackKeyboard(vm: StudioViewModel, t: Track, idx: Int) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             ToolChip("Oct −") { oct = (oct - 1).coerceAtLeast(0) }; Text("C$oct", color = Color.White, fontSize = 12.sp); ToolChip("Oct +") { oct = (oct + 1).coerceAtMost(7) }
             MSR("R", "Record arm ${t.name}", armed, Rec) { vm.armedTrackId = if (armed) null else t.id }
-            ToolChip(if (armed && vm.isPlaying) "■ Stop rec" else "● Record") { vm.toggleTrackRecord(t.id) }
+            ToolChip(if (vm.isKeyboardRecording && armed) "■ Stop rec" else "● Record") { vm.toggleTrackRecord(t.id) }
             ToolChip("✨ Polish") { vm.polishTrack(t.id) }
         }
         val s = vm.session; val key = remember(s.tracks) { SongAI.detectKey(s) }; val deg = SongAI.chordAt(s, key, vm.playhead)
