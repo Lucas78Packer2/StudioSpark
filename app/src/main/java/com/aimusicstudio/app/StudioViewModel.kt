@@ -189,7 +189,7 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
     /** Assign an onboard instrument to a track: synth/guitar voice change, or render a drum hit to a clip at the playhead. */
     fun assignInstrument(trackId: String, i: Instrument) {
         val t = session.tracks.firstOrNull { it.id == trackId } ?: return
-        if (i.pad != null) { val f = File(stemsDir, "kit-${session.kit.name.lowercase()}-${i.pad.name.lowercase()}.wav")
+        if (i.pad != null) { val f = File(stemsDir, "kit-v${Fx.KIT_VERSION}-${session.kit.name.lowercase()}-${i.pad.name.lowercase()}.wav")
             if (!f.exists()) MixRenderer.writeWavInterleaved(f, Fx.kitDrum(session.kit, i.pad), 1)
             val d = AudioDecoder.durationOf(f)
             if (t.kind == TrackKind.AUDIO) updateTrack(trackId) { it.copy(clips = it.clips + AudioClip(fileName = f.name, startTime = playhead, duration = d)) }
@@ -338,7 +338,9 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
             var w = 0; while (!ttsReady && w < 40) { kotlinx.coroutines.delay(100); w++ }
             if (!ttsReady) { status = voiceInfo; return@launch }
             val v = pickVoice(t.voiceGender); if (v != null) tts.voice = v
-            tts.setPitch(t.vocalStyle.pitch); tts.setSpeechRate(t.vocalStyle.rate * (session.tempoBPM / 110f).coerceIn(0.8f, 1.3f))
+            // Pitch = style colour (plus a gender nudge only when no gendered voice exists); rate = style feel scaled gently by tempo (sqrt keeps words intelligible).
+            val gNudge = if (v == null) when (t.voiceGender) { VoiceGender.MALE -> 0.88f; VoiceGender.FEMALE -> 1.1f; else -> 1f } else 1f
+            tts.setPitch((t.vocalStyle.pitch * gNudge).coerceIn(0.6f, 1.6f)); tts.setSpeechRate((t.vocalStyle.rate * kotlin.math.sqrt(session.tempoBPM / 110f)).coerceIn(0.6f, 1.4f))
             voiceInfo = "Voice: ${v?.name ?: "default"}${if (v != null && v.quality >= android.speech.tts.Voice.QUALITY_HIGH) " (high quality)" else ""}"
             val lines = t.lyrics.lines().map { it.trim() }.filter { it.isNotEmpty() }
             val bar = session.barSeconds; var time = kotlin.math.floor(playhead / bar) * bar; val clips = mutableListOf<AudioClip>(); var k = 0
@@ -351,6 +353,7 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
                     override fun onStart(u: String?) {}; override fun onDone(u: String?) { latch.countDown() }
                     @Deprecated("") override fun onError(u: String?) { latch.countDown() } })
                 tts.synthesizeToFile(ln, android.os.Bundle(), f, uid); latch.await(20, java.util.concurrent.TimeUnit.SECONDS)
+                runCatching { if (f.length() > 44) { val polished = Fx.vocalPolish(AudioDecoder.decode(f).copyOf(), t.vocalStyle); MixRenderer.writeWavInterleaved(f, polished, 1) } }
                 val d = AudioDecoder.durationOf(f)
                 if (d > 0) { clips += AudioClip(fileName = f.name, startTime = time, duration = d); time += kotlin.math.ceil((d + 0.15) / bar).coerceAtLeast(1.0) * bar }
                 k++

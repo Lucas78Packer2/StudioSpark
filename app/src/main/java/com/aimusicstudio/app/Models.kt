@@ -32,7 +32,8 @@ enum class SynthWaveform(val label: String) { SINE("Sine"), TRIANGLE("Tri"), SAW
 /** Port of DrumPad from InstrumentSoundGenerator.swift */
 enum class DrumPad(val label: String) {
     KICK("Bass Drum"), SNARE("Snare"), LOW_TOM("Low Tom"), MID_TOM("Mid Tom"), HIGH_TOM("Hi Tom"),
-    RIMSHOT("Rimshot"), CLAP("Clap"), COWBELL("Cowbell"), CLOSED_HAT("Closed Hat"), OPEN_HAT("Open Hat"), CYMBAL("Cymbal")
+    RIMSHOT("Rimshot"), CLAP("Clap"), COWBELL("Cowbell"), CLOSED_HAT("Closed Hat"), OPEN_HAT("Open Hat"), CYMBAL("Cymbal"),
+    RIDE("Ride"), CRASH("Crash")
 }
 
 /** 16-step DrumPattern. */
@@ -202,5 +203,6 @@ enum class GuitarModel(val label: String, val brightness: Float, val body: Float
     TAYLOR("Taylor-style Grand Auditorium", 0.6f, 0.85f), MUSICMAN("Music Man-style StingRay Bass", 0.4f, 0.6f), RICK_BASS("Rickenbacker-style 4003 Bass", 0.55f, 0.55f),
     THUNDERBIRD("Gibson-style Thunderbird Bass", 0.3f, 0.75f), IBANEZ_SR("Ibanez-style SR 5-String Bass", 0.45f, 0.5f), HOFNER("Hofner-style Violin Bass", 0.25f, 0.8f)
 }
-enum class DrumKit(val label: String) { ROCK("Rock"), TR808("808"), ACOUSTIC("Acoustic Jazz"), ELECTRONIC("Electronic"), LOFI("Lo-Fi"), TRAP("Trap"), METAL("Metal"), HOUSE("House"), JAZZ_BRUSH("Jazz Brushes"), DNB("Drum & Bass"), VINTAGE909("909"), PROG_ARENA("Arena Prog Kit (big toms, Peart-inspired)"), MASK_METAL("Mask Metal Kit (triggered double-kick, Jordison-inspired)"), DJENT("Djent Tight Kit") }
+enum class DrumKit(val label: String) { ROCK("Rock"), TR808("808"), ACOUSTIC("Acoustic Jazz"), ELECTRONIC("Electronic"), LOFI("Lo-Fi"), TRAP("Trap"), METAL("Metal"), HOUSE("House"), JAZZ_BRUSH("Jazz Brushes"), DNB("Drum & Bass"), VINTAGE909("909"), PROG_ARENA("Arena Prog Kit (big toms, Peart-inspired)"), MASK_METAL("Mask Metal Kit (triggered double-kick, Jordison-inspired)"), DJENT("Djent Tight Kit"),
+    PEARL_STAGE("Pearl-inspired Stage Kit"), DW_COLLECTOR("DW-inspired Collector Kit"), SABIAN_AA("Sabian-inspired AA Cymbal Kit") }
 enum class MixerLayout(val label: String) { CONSOLE("Full Console"), COMPACT("Compact"), BUS("Bus / Sends") }

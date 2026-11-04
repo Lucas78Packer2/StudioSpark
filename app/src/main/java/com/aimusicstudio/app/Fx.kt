@@ -5,30 +5,82 @@ import java.io.File
 import kotlin.math.*
 import kotlin.random.Random
 
-/** Pedalboard, amp sims, guitar voices, drum kits, sends. Lightweight offline DSP. */
+/** Pedalboard, amp sims, guitar voices, drum kits, sends. Lightweight offline DSP (all synthesized — no licensed samples). */
 object Fx {
+    /** RBJ biquad (lowpass / highpass / bandpass / peak / shelves) used by amps, cabs, pedals and guitar bodies. */
+    class BQ private constructor(private val b0: Float, private val b1: Float, private val b2: Float, private val a1: Float, private val a2: Float) {
+        private var z1 = 0f; private var z2 = 0f
+        fun p(x: Float): Float { val y = b0 * x + z1; z1 = b1 * x - a1 * y + z2; z2 = b2 * x - a2 * y; return y }
+        companion object {
+            private fun mk(type: Int, fc: Double, q: Double, gainDb: Double = 0.0): BQ {
+                val w = 2 * PI * fc.coerceIn(10.0, SR * 0.45) / SR; val c = cos(w); val s = sin(w); val al = s / (2 * q); val A = 10.0.pow(gainDb / 40)
+                val (b, a) = when (type) {
+                    0 -> doubleArrayOf((1 - c) / 2, 1 - c, (1 - c) / 2) to doubleArrayOf(1 + al, -2 * c, 1 - al)
+                    1 -> doubleArrayOf((1 + c) / 2, -(1 + c), (1 + c) / 2) to doubleArrayOf(1 + al, -2 * c, 1 - al)
+                    2 -> doubleArrayOf(al, 0.0, -al) to doubleArrayOf(1 + al, -2 * c, 1 - al)
+                    3 -> doubleArrayOf(1 + al * A, -2 * c, 1 - al * A) to doubleArrayOf(1 + al / A, -2 * c, 1 - al / A)
+                    4 -> { val r = 2 * sqrt(A) * al  // low shelf
+                        doubleArrayOf(A * ((A + 1) - (A - 1) * c + r), 2 * A * ((A - 1) - (A + 1) * c), A * ((A + 1) - (A - 1) * c - r)) to
+                            doubleArrayOf((A + 1) + (A - 1) * c + r, -2 * ((A - 1) + (A + 1) * c), (A + 1) + (A - 1) * c - r) }
+                    else -> { val r = 2 * sqrt(A) * al // high shelf
+                        doubleArrayOf(A * ((A + 1) + (A - 1) * c + r), -2 * A * ((A - 1) + (A + 1) * c), A * ((A + 1) + (A - 1) * c - r)) to
+                            doubleArrayOf((A + 1) - (A - 1) * c + r, 2 * ((A - 1) - (A + 1) * c), (A + 1) - (A - 1) * c - r) }
+                }
+                return BQ((b[0] / a[0]).toFloat(), (b[1] / a[0]).toFloat(), (b[2] / a[0]).toFloat(), (a[1] / a[0]).toFloat(), (a[2] / a[0]).toFloat())
+            }
+            fun lp(fc: Double, q: Double = 0.707) = mk(0, fc, q); fun hp(fc: Double, q: Double = 0.707) = mk(1, fc, q)
+            fun bp(fc: Double, q: Double = 1.0) = mk(2, fc, q); fun peak(fc: Double, q: Double, db: Double) = mk(3, fc, q, db)
+            fun lowShelf(fc: Double, db: Double) = mk(4, fc, 0.707, db); fun highShelf(fc: Double, db: Double) = mk(5, fc, 0.707, db)
+        }
+    }
+    private fun FloatArray.run(f: BQ) { for (i in indices) this[i] = f.p(this[i]) }
+    private fun peakOf(x: FloatArray): Float { var p = 0f; for (v in x) p = max(p, abs(v)); return p }
+    private fun rms(x: FloatArray): Float { if (x.isEmpty()) return 0f; var s = 0.0; for (v in x) s += v * v; return sqrt(s / x.size).toFloat() }
+    /** Keep a processed block near its input loudness so drive/fuzz pedals don't blow up levels. */
+    private fun matchLevel(x: FloatArray, refRms: Float, trim: Float = 1f) { val r = rms(x); if (r > 1e-6f && refRms > 1e-6f) { val g = (refRms / r * trim).coerceIn(0.1f, 4f); for (i in x.indices) x[i] *= g } }
+    private fun interp(src: FloatArray, j: Double): Float { val k = floor(j).toInt(); if (k < 0 || k + 1 >= src.size) return 0f; val f = (j - k).toFloat(); return src[k] + (src[k + 1] - src[k]) * f }
+
     fun pedal(x: FloatArray, p: PedalSlot, bpm: Int) {
         if (!p.on) return
         pedalCore(x, p, bpm)
         // Second (TONE) knob: tilt filter after the effect — dark below 0.5, bright above.
         val tn = p.tone.coerceIn(0f, 1f); if (abs(tn - 0.5f) > 0.02f) { var lp = 0f; val c = 0.05f + tn * 0.9f
             for (i in x.indices) { lp += c * (x[i] - lp); x[i] = if (tn < 0.5f) lp else x[i] + (x[i] - lp) * (tn - 0.5f) * 1.2f } }
+        // Safety: soft-limit anything a pedal pushes past full scale.
+        if (peakOf(x) > 0.98f) for (i in x.indices) x[i] = tanh(x[i])
     }
     private fun pedalCore(x: FloatArray, p: PedalSlot, bpm: Int) {
-        val a = p.amount.coerceIn(0f, 1f)
+        val a = p.amount.coerceIn(0f, 1f); val inRms = rms(x)
         when (p.type) {
-            PedalType.OVERDRIVE -> { val g = 1 + a * 8; for (i in x.indices) x[i] = tanh(x[i] * g) / tanh(g).coerceAtLeast(0.3f) * 0.7f }
-            PedalType.DISTORTION -> { val g = 4 + a * 30; for (i in x.indices) x[i] = (x[i] * g).coerceIn(-0.6f, 0.6f) }
-            PedalType.CHORUS -> { val base = (0.012 * SR).toInt(); val dep = 0.004 * SR; val src = x.copyOf()
-                for (i in x.indices) { val d = base + (dep * sin(2 * PI * 0.8 * i / SR)).toInt(); val j = i - d; if (j >= 0) x[i] = src[i] * (1 - a * 0.5f) + src[j] * a * 0.6f } }
-            PedalType.DELAY -> delay(x, (60.0 / bpm * 0.75 * SR).toInt(), 0.35f + a * 0.4f, a)
+            // Screamer-style OD: low cut before clipping (tight bass), mid hump, asymmetric soft clip, smoothed top, level-matched.
+            PedalType.OVERDRIVE -> { val pre = BQ.hp(720.0, 0.6); val hump = BQ.peak(800.0, 0.8, 4.0 + a * 4); val post = BQ.lp(5200.0 - a * 1800); val g = 2 + a * 22
+                for (i in x.indices) { val clean = x[i]; val d = hump.p(pre.p(clean) * g + clean * 0.4f); val y = if (d >= 0) tanh(d) else tanh(d * 0.8f) * 1.1f
+                    x[i] = post.p(y + clean * 0.25f) }
+                matchLevel(x, inRms, 1.15f) }
+            // Rat-style distortion: op-amp gain into hard-ish diode clip, filter sweep, scooped slightly.
+            PedalType.DISTORTION -> { val pre = BQ.hp(120.0); val post = BQ.lp(3800.0 + (1 - a) * 2400); val scoop = BQ.peak(650.0, 0.7, -3.0); val g = 8 + a * 60
+                for (i in x.indices) { val d = pre.p(x[i]) * g; val y = d / (1 + abs(d)).pow(0.6f) ; x[i] = scoop.p(post.p(y.coerceIn(-1.2f, 1.2f))) }
+                matchLevel(x, inRms, 1.2f) }
+            // Two-voice stereo-style chorus summed to mono with interpolated modulated delays.
+            PedalType.CHORUS -> { val src = x.copyOf(); val base = 0.011 * SR; val dep = (0.0015 + 0.003 * a) * SR
+                for (i in x.indices) { val ph = 2 * PI * 0.7 * i / SR
+                    val w1 = interp(src, i - base - dep * (0.5 + 0.5 * sin(ph))); val w2 = interp(src, i - base * 1.35 - dep * (0.5 + 0.5 * sin(ph + 2.1)))
+                    x[i] = src[i] * (1 - a * 0.35f) + (w1 + w2) * 0.5f * (0.35f + a * 0.45f) } }
+            // Analog-flavoured delay: dotted-8th, repeats darken + lose highs each pass.
+            PedalType.DELAY -> { val d = (60.0 / bpm * 0.75 * SR).toInt(); if (d > 0) { val fb = 0.3f + a * 0.45f; val y = x.copyOf(); val lp = BQ.lp(3200.0); val hp = BQ.hp(140.0)
+                for (i in d until y.size) y[i] = x[i] + hp.p(lp.p(y[i - d])) * fb
+                for (i in x.indices) x[i] = x[i] + (y[i] - x[i]) * (0.35f + a * 0.5f) } }
             PedalType.REVERB -> reverb(x, a)
-            PedalType.WAH -> { var lp = 0f; var bp = 0f
-                for (i in x.indices) { val f = (2 * sin(PI * (400 + 1800 * (0.5 + 0.5 * sin(2 * PI * (0.5 + a * 3) * i / SR))) / SR)).toFloat()
-                    val hp = x[i] - lp - 0.3f * bp; bp += f * hp; lp += f * bp; x[i] = x[i] * (1 - a) + bp * a * 2.5f } }
+            // Cry-baby-style wah: resonant bandpass swept 450 Hz → 2.2 kHz (LFO-driven "auto" foot), Q ~ 4.
+            PedalType.WAH -> { var lp = 0f; var bp = 0f; val q = 0.22f
+                for (i in x.indices) { val sw = 0.5 + 0.5 * sin(2 * PI * (0.5 + a * 3) * i / SR); val fc = 450 * (2200.0 / 450).pow(sw)
+                    val f = (2 * sin(PI * fc / SR)).toFloat(); val hp = x[i] - lp - q * bp; bp += f * hp; lp += f * bp; x[i] = x[i] * (1 - a) + bp * a * 1.6f } }
             PedalType.COMPRESSOR -> MixRenderer.applyCompressor(x, TrackCompressorSettings(true, -10f - a * 25f, 2f + a * 8f, 8f, 120f, a * 10f))
             PedalType.TREMOLO -> for (i in x.indices) x[i] *= (1 - a * (0.5f + 0.5f * sin(2 * PI * 5 * i / SR).toFloat()))
-            PedalType.FUZZ -> { val g = 10 + a * 60; for (i in x.indices) { val y = x[i] * g; x[i] = (sign(y) * (1 - exp(-abs(y))) * 0.55f + 0.05f * abs(y).coerceAtMost(1f)) } }
+            // Fuzz-Face-style: massive gain, asymmetric (germanium-ish bias), gated sputter at low input, woolly top.
+            PedalType.FUZZ -> { val g = 20 + a * 120; val post = BQ.lp(3000.0); val hp = BQ.hp(90.0)
+                for (i in x.indices) { val y = hp.p(x[i]) * g + 0.15f; val c = if (y > 0) 1 - exp(-y) else -(1 - exp(y * 1.4f)) * 0.85f; x[i] = post.p(c - 0.13f) }
+                matchLevel(x, inRms, 1.25f) }
             PedalType.METAL_DIST -> { var hp = 0f; var prev = 0f; val g = 30 + a * 80
                 for (i in x.indices) { hp = 0.97f * (hp + x[i] - prev); prev = x[i]; val y = tanh(hp * g); x[i] = tanh(y * 3f) * 0.55f } }
             PedalType.BOOST -> { val g = 1 + a * 3; for (i in x.indices) x[i] = (x[i] * g).coerceIn(-1f, 1f) }
@@ -59,12 +111,60 @@ object Fx {
     /** Synthesized amp model; the six front-panel knobs (0..1, 0.5 = model default) scale gain/EQ/presence/master live. */
     fun amp(x: FloatArray, m: AmpModel, gain: Float, bass: Float, mid: Float, treble: Float, presence: Float, master: Float) {
         if (m == AmpModel.NONE) return
+        val inRms = rms(x)
+        val isBass = m.label.contains("Bass") || m == AmpModel.AMPEG_SVT || m == AmpModel.GALLIEN
+        val acoustic = m == AmpModel.ACOUSTIC_DI
+        val hiGain = m.gain >= 12f
+        val name = m.name
+        // Voicing: British = mid-forward, American clean = scooped/sparkly, Mesa/Recto = tight + saggy low end, AC30-style = chimey upper mids.
+        val (midHz, midDb) = when {
+            name.contains("BRIT") || name.contains("PLEXI") || name.contains("JCM") || name.contains("JTM") || name.contains("FRIEDMAN") || name.contains("SOLDANO") -> 900.0 to 3.5
+            name.contains("TWIN") || name.contains("DELUXE") || name == "CLEAN" || name.contains("ROLAND") -> 500.0 to -3.0
+            name.contains("RECT") || name.contains("RECTO") || name.contains("5150") || name.contains("6505") || name == "METAL" || name == "EVH" -> 600.0 to -4.0
+            name.contains("CHIME") -> 2200.0 to 3.0
+            name.contains("MARK") -> 750.0 to 2.0
+            isBass -> 800.0 to 1.0
+            else -> 1000.0 to 0.0
+        }
+        // Tone stack (knobs) + per-model mid voicing, before the preamp like a real amp's interstage EQ.
         MixRenderer.applyEQ(x, TrackEQSettings(m.bass + (bass - 0.5f) * 18f, (mid - 0.5f) * 16f, m.treble + (treble - 0.5f) * 18f))
-        val g = (1 + m.gain) * (0.15f + gain * 1.7f) + gain * 2f; val norm = 1f / tanh(g * 0.5f).coerceAtLeast(0.2f)
-        for (i in x.indices) x[i] = tanh(x[i] * g) * norm * 0.5f
-        var lp = 0f; val c = 0.2f + presence * 0.45f // cabinet roll-off, opened up by Presence
-        for (i in x.indices) { lp += c * (x[i] - lp); x[i] = lp }
-        val out = 0.2f + master * 1.4f; for (i in x.indices) x[i] = (x[i] * out).coerceIn(-1f, 1f)
+        x.run(BQ.peak(midHz, 0.9, midDb))
+        // High-gain amps tighten the low end before the clipping stages (like a TS boost / tight switch).
+        if (hiGain && !isBass) x.run(BQ.hp(110.0 + m.gain * 2.5))
+        val g = (1 + m.gain) * (0.15f + gain * 1.7f) + gain * 2f
+        val bias = if (acoustic) 0f else 0.08f + min(m.gain, 30f) * 0.004f // tube-like asymmetry → even harmonics
+        val norm = 1f / tanh(g * 0.5f).coerceAtLeast(0.2f)
+        val coup = BQ.hp(25.0) // removes DC from asymmetric clipping
+        if (hiGain) { val g1 = sqrt(g) * 1.6f; val g2 = sqrt(g) * 1.3f; val inter = BQ.lp(6500.0)
+            for (i in x.indices) { val s1 = tanh(x[i] * g1 + bias) - tanh(bias); val s2 = tanh(inter.p(s1) * g2 + bias * 0.5f) - tanh(bias * 0.5f); x[i] = coup.p(s2) * 0.55f } }
+        else for (i in x.indices) { val y = x[i] * g; x[i] = coup.p(tanh(y + bias) - tanh(bias)) * norm * 0.5f }
+        // Cabinet: speaker low cut, resonance bump, cone break-up roll-off (opened by Presence), presence peak.
+        if (acoustic) { x.run(BQ.highShelf(6000.0, 2.0)) } else {
+            x.run(BQ.hp(if (isBass) 35.0 else 80.0))
+            x.run(BQ.lowShelf(if (isBass) 90.0 else 120.0, if (isBass) 4.0 else 2.5))
+            val cut = (if (isBass) 3200.0 else 4300.0) + presence * 2600.0
+            x.run(BQ.lp(cut, 0.9)); x.run(BQ.lp(cut * 1.3, 0.6))
+            x.run(BQ.peak(if (isBass) 1800.0 else 3200.0, 1.2, (presence - 0.5) * 8.0))
+            if (name.contains("4X12") || name.contains("RECT") || name.contains("JCM") || hiGain) x.run(BQ.peak(1900.0, 3.0, -2.5)) // 4x12 comb notch
+        }
+        matchLevel(x, inRms, 1.6f)
+        val out = 0.2f + master * 1.4f; for (i in x.indices) x[i] = tanh(x[i] * out)
+    }
+
+
+    /** Post-TTS vocal chain: rumble cut, de-box, presence, air, gentle compression, optional doubler + short plate.
+     *  Pop/Rock/Country get a light ADT-style double (slightly detuned, ~18 ms late); Ballad/Soul get more space. */
+    fun vocalPolish(x: FloatArray, style: VocalStyle): FloatArray {
+        if (x.isEmpty()) return x
+        val inPk = peakOf(x)
+        x.run(BQ.hp(95.0)); x.run(BQ.peak(350.0, 1.0, -2.5)); x.run(BQ.peak(3200.0, 0.9, 3.0)); x.run(BQ.highShelf(9000.0, 2.5))
+        MixRenderer.applyCompressor(x, TrackCompressorSettings(true, -20f, 3f, 6f, 90f, 4f))
+        val y = if (style == VocalStyle.POP || style == VocalStyle.ROCK || style == VocalStyle.COUNTRY) {
+            val dbl = resample(x, 1.004f); val off = (0.018 * SR).toInt(); val o = x.copyOf(x.size + off)
+            for (i in dbl.indices) if (i + off < o.size) o[i + off] += dbl[i] * 0.32f; o } else x.copyOf(x.size + SR / 3)
+        reverb(y, when (style) { VocalStyle.BALLAD, VocalStyle.SOUL -> 0.28f; VocalStyle.RAP -> 0.08f; else -> 0.16f })
+        val pk = peakOf(y); if (pk > 0f) { val g = (max(inPk, 0.5f) * 0.95f / pk).coerceAtMost(4f); for (i in y.indices) y[i] *= g }
+        return y
     }
 
     fun delay(x: FloatArray, d: Int, fb: Float, mix: Float) {
@@ -83,37 +183,76 @@ object Fx {
         for (i in x.indices) x[i] = x[i] * (1 - mix * 0.5f) + out[i] * mix
     }
 
-    /** Karplus-Strong plucked string coloured by guitar model. */
+    /** Karplus-Strong plucked string with pick-position comb, pick transient, interpolated tuning and body resonances
+     *  shaped by the guitar model (brightness = pickup/string brightness, body = resonant mass). */
     fun guitarNote(g: GuitarModel, pitch: Int, dur: Double, vel: Float = 0.8f): FloatArray {
-        val f = InstrumentSoundGenerator.freq(pitch); val p = max(2, (SR / f).toInt()); val n = ((dur + 0.6) * SR).toInt()
-        val rnd = Random(pitch); val buf = FloatArray(p) { rnd.nextFloat() * 2 - 1 }
-        var lpb = 0f; for (i in buf.indices) { lpb += (1 - g.brightness) * 0.6f * (buf[i] - lpb); buf[i] = buf[i] * g.brightness + lpb * (1 - g.brightness) }
-        val out = FloatArray(n); var k = 0; val damp = 0.996f - (1 - g.brightness) * 0.004f
-        for (i in 0 until n) { val nx = (k + 1) % p; val v = (buf[k] + buf[nx]) * 0.5f * damp; out[i] = buf[k]; buf[k] = v; k = nx
-            if (i.toDouble() / SR > dur) out[i] *= exp(-(i.toDouble() / SR - dur) * 12).toFloat() }
-        var body = 0f; for (i in out.indices) { body += 0.05f * (out[i] - body); out[i] = (out[i] + body * g.body * 3) * vel * 0.5f }
+        val f = InstrumentSoundGenerator.freq(pitch); val bass = g.label.contains("Bass")
+        val acoustic = g in setOf(GuitarModel.ACOUSTIC, GuitarModel.NYLON, GuitarModel.TAYLOR, GuitarModel.RESO, GuitarModel.JAZZBOX)
+        val pd = SR / f; val p = max(2, pd.toInt()); val frac = (pd - p).toFloat(); val n = ((dur + (if (bass) 0.8 else 0.6)) * SR).toInt()
+        val rnd = Random(pitch * 7 + g.ordinal)
+        // Excitation: noise burst, darker at low velocity, then pick-position comb (picked ~1/8–1/4 from bridge).
+        val buf = FloatArray(p) { rnd.nextFloat() * 2 - 1 }
+        val vb = (0.35f + vel * 0.6f) * (0.4f + g.brightness * 0.6f)
+        var lpb = 0f; for (i in buf.indices) { lpb += vb * (buf[i] - lpb); buf[i] = lpb }
+        val pick = max(1, (p * (0.12f + (1 - g.brightness) * 0.14f)).toInt()); val ex = buf.copyOf(); for (i in buf.indices) buf[i] = ex[i] - ex[(i - pick + p) % p] * 0.9f
+        var m = 0f; for (v in buf) m += v; m /= p; for (i in buf.indices) buf[i] -= m
+        val out = FloatArray(n); var k = 0
+        val damp = (if (bass) 0.9975f else 0.9962f) + g.brightness * 0.002f - (1 - g.brightness) * 0.002f
+        val blend = 0.5f - g.brightness * 0.12f // loss filter weighting: brighter models keep more top end
+        var ap = 0f; val apc = (1 - frac) / (1 + frac) // allpass fractional delay → in-tune high notes
+        for (i in 0 until n) { val nx = (k + 1) % p; val lpv = (buf[k] * (1 - blend) + buf[nx] * blend) * damp
+            val y = apc * lpv + ap; ap = lpv - apc * y
+            out[i] = buf[k]; buf[k] = y; k = nx
+            val t = i.toDouble() / SR; if (t > dur) out[i] *= exp(-(t - dur) * 14).toFloat() }
+        // Pick attack click (short bright noise) — stronger on bright/electric models.
+        val clickN = (0.004 * SR).toInt(); for (i in 0 until min(clickN, n)) out[i] += (rnd.nextFloat() * 2 - 1) * (1 - i.toFloat() / clickN) * 0.25f * vel * (0.4f + g.brightness)
+        // Body: two resonant modes (air + top plate) mixed by body amount; acoustics get a third higher mode.
+        val b1 = BQ.bp(if (bass) 70.0 else 98.0 + g.body * 20, 2.5); val b2 = BQ.bp(if (bass) 160.0 else 205.0 + g.body * 40, 3.0); val b3 = BQ.bp(420.0, 2.0)
+        val hs = BQ.highShelf(3500.0, (g.brightness - 0.5) * 8.0)
+        for (i in out.indices) { val s = out[i]; var y = s + (b1.p(s) * 1.4f + b2.p(s)) * g.body * 1.2f
+            if (acoustic) y += b3.p(s) * 0.5f * g.body; out[i] = hs.p(y) }
+        val pk = peakOf(out); val norm = if (pk > 0) 0.9f / pk else 1f
+        for (i in out.indices) out[i] *= norm * vel * 0.6f
         return out
     }
 
     private val kitCache = HashMap<Pair<DrumKit, DrumPad>, FloatArray>()
-    private const val KIT_VERSION = 2
-    private class Kit(val tune: Double, val decay: Double, val noise: Double, val drive: Double, val room: Float, val crush: Int = 0, val dark: Float = 1f)
+    const val KIT_VERSION = 3
+    /** cym = cymbal brightness/size multiplier, hatTight = closed-hat tightness. */
+    private class Kit(val tune: Double, val decay: Double, val noise: Double, val drive: Double, val room: Float, val crush: Int = 0, val dark: Float = 1f,
+                      val cym: Double = 1.0, val hatTight: Double = 1.0)
     private fun kitSpec(k: DrumKit) = when (k) {
         DrumKit.ROCK -> Kit(1.0, 1.0, 1.0, 1.3, 0.22f)
-        DrumKit.ACOUSTIC -> Kit(1.08, 1.25, 0.8, 1.0, 0.32f, dark = 0.8f)
-        DrumKit.METAL -> Kit(1.15, 0.7, 1.2, 2.2, 0.15f)
-        DrumKit.JAZZ_BRUSH -> Kit(1.25, 1.4, 0.6, 1.0, 0.35f, dark = 0.6f)
+        DrumKit.ACOUSTIC -> Kit(1.08, 1.25, 0.8, 1.0, 0.32f, dark = 0.8f, cym = 0.9)
+        DrumKit.METAL -> Kit(1.15, 0.7, 1.2, 2.2, 0.15f, cym = 1.1, hatTight = 1.3)
+        DrumKit.JAZZ_BRUSH -> Kit(1.25, 1.4, 0.6, 1.0, 0.35f, dark = 0.6f, cym = 0.8, hatTight = 0.8)
         DrumKit.TR808 -> Kit(0.85, 1.0, 0.5, 1.1, 0f)
         DrumKit.VINTAGE909 -> Kit(1.0, 0.8, 1.0, 1.5, 0.05f)
-        DrumKit.TRAP -> Kit(0.8, 1.0, 0.7, 1.8, 0f)
+        DrumKit.TRAP -> Kit(0.8, 1.0, 0.7, 1.8, 0f, hatTight = 1.5)
         DrumKit.HOUSE -> Kit(1.0, 0.7, 0.9, 1.3, 0.08f)
-        DrumKit.DNB -> Kit(1.2, 0.6, 1.1, 1.6, 0.1f)
+        DrumKit.DNB -> Kit(1.2, 0.6, 1.1, 1.6, 0.1f, hatTight = 1.2)
         DrumKit.ELECTRONIC -> Kit(1.1, 0.8, 0.9, 1.6, 0.06f)
         DrumKit.LOFI -> Kit(0.9, 0.9, 0.7, 1.2, 0.12f, crush = 10, dark = 0.5f)
-        DrumKit.PROG_ARENA -> Kit(0.95, 1.5, 1.0, 1.2, 0.38f)       // deep shells, long tom ring, big hall
-        DrumKit.MASK_METAL -> Kit(1.2, 0.55, 1.3, 2.6, 0.12f)       // clicky triggered kick, cracking snare
-        DrumKit.DJENT -> Kit(1.1, 0.5, 1.1, 2.0, 0.08f, dark = 0.9f) // tight, dry, gated
+        DrumKit.PROG_ARENA -> Kit(0.95, 1.5, 1.0, 1.2, 0.38f, cym = 1.15)       // deep shells, long tom ring, big hall
+        DrumKit.MASK_METAL -> Kit(1.2, 0.55, 1.3, 2.6, 0.12f, hatTight = 1.4)    // clicky triggered kick, cracking snare
+        DrumKit.DJENT -> Kit(1.1, 0.5, 1.1, 2.0, 0.08f, dark = 0.9f, hatTight = 1.5) // tight, dry, gated
+        DrumKit.PEARL_STAGE -> Kit(1.03, 1.05, 1.05, 1.25, 0.24f, cym = 1.05)   // punchy maple/birch stage kit, focused attack
+        DrumKit.DW_COLLECTOR -> Kit(0.96, 1.3, 0.9, 1.12, 0.3f, dark = 0.93f, cym = 0.95) // warm deep shells, long sustain
+        DrumKit.SABIAN_AA -> Kit(1.0, 1.0, 1.0, 1.2, 0.22f, cym = 1.3, hatTight = 1.1)   // bright, cutting cast-bronze cymbal focus
     }
+    /** Inharmonic metal: sum of sine (acoustic) or square (analog-machine) partials, HP'd noise mixed in. */
+    private fun metal(dur: Double, freqs: DoubleArray, square: Boolean, noiseAmt: Double, hpHz: Double, seed: Int, env: (Double) -> Double): FloatArray {
+        val rnd = Random(seed); val n = (dur * SR).toInt(); val y = FloatArray(n)
+        val ph = DoubleArray(freqs.size) { rnd.nextDouble() }
+        for (i in 0 until n) { val t = i.toDouble() / SR; var s = 0.0
+            for (j in freqs.indices) { val v = sin(2 * PI * (freqs[j] * t + ph[j])); s += if (square) sign(v) else v }
+            y[i] = ((s / freqs.size) * (1 - noiseAmt) + rnd.nextDouble(-1.0, 1.0) * noiseAmt).toFloat() * env(t).toFloat() }
+        val h1 = BQ.hp(hpHz); val h2 = BQ.hp(hpHz * 1.1); for (i in y.indices) y[i] = h2.p(h1.p(y[i]))
+        return y
+    }
+    private val HAT_ACOUSTIC = doubleArrayOf(3150.0, 4270.0, 5340.0, 6720.0, 8130.0, 9870.0, 11400.0)
+    private val HAT_ANALOG = doubleArrayOf(205.3, 304.4, 369.6, 522.7, 540.0, 800.0).map { it * 2.0 }.toDoubleArray() // classic six-oscillator metal bank, an octave up
+    private fun cymbalPartials(n: Int, lo: Double, hi: Double, seed: Int): DoubleArray { val r = Random(seed); return DoubleArray(n) { lo * (hi / lo).pow(r.nextDouble()) } }
     /** Per-kit synthesized drum voices (no licensed samples): layered acoustic kick thud + beater click, snare crack + wires,
      *  brush swishes, long 808 sub, 909 punch, tight metal kicks. Each kit has its own tuning/decay/drive/room. */
     fun kitDrum(kit: DrumKit, pad: DrumPad): FloatArray = synchronized(kitCache) { kitCache.getOrPut(kit to pad) {
@@ -121,6 +260,7 @@ object Fx {
         fun n() = rnd.nextDouble(-1.0, 1.0)
         fun gen(dur: Double, f: (Double) -> Double) = FloatArray((dur * SR).toInt()) { f(it.toDouble() / SR).toFloat() }
         val electronic = kit in setOf(DrumKit.TR808, DrumKit.VINTAGE909, DrumKit.TRAP, DrumKit.HOUSE, DrumKit.ELECTRONIC)
+        val seed = kit.ordinal * 97 + pad.ordinal
         var y: FloatArray = when (pad) {
             DrumPad.KICK -> when (kit) {
                 DrumKit.TR808 -> gen(1.4) { t -> sin(2 * PI * (48 + 55 * exp(-30 * t)) * t) * exp(-2.2 * t) }
@@ -140,15 +280,29 @@ object Fx {
                         sin(2 * PI * (f + 40 * exp(-80 * t)) * t) * 0.55 * exp(-28 * t) + sin(2 * PI * f * 1.5 * t) * 0.2 * exp(-35 * t) + hp * 0.55 * k.noise * exp(-13 / k.decay * t) } }
             }
             DrumPad.CLAP -> gen(0.35) { t -> n() * (exp(-70 * (t % 0.011)) * (if (t < 0.034) 1.0 else 0.0) + exp(-13 * t) * 0.55) * (if (kit == DrumKit.JAZZ_BRUSH) 0.4 else 1.0) }
-            DrumPad.CLOSED_HAT -> { var hp = 0.0; var pv = 0.0; gen(if (kit == DrumKit.TRAP) 0.04 else 0.08 * k.decay) { t ->
-                val m = if (electronic) n() else (sign(sin(2 * PI * 540 * k.tune * t)) + sign(sin(2 * PI * 800 * t)) + sign(sin(2 * PI * 1170 * t))) * 0.3 + n() * 0.4
-                hp = 0.6 * (hp + m - pv); pv = m; hp * 0.5 * exp(-(if (kit == DrumKit.JAZZ_BRUSH) 30 else 60) * t) } }
-            DrumPad.OPEN_HAT -> { var hp = 0.0; var pv = 0.0; gen(0.5 * k.decay) { t ->
-                val m = if (electronic) n() else (sign(sin(2 * PI * 540 * t)) + sign(sin(2 * PI * 800 * t)) + sign(sin(2 * PI * 1170 * t))) * 0.3 + n() * 0.4
-                hp = 0.6 * (hp + m - pv); pv = m; hp * 0.45 * exp(-7 / k.decay * t) } }
-            DrumPad.CYMBAL -> { var hp = 0.0; var pv = 0.0; gen(if (kit == DrumKit.JAZZ_BRUSH) 2.2 else 1.6) { t ->
-                val m = n() * 0.6 + (sign(sin(2 * PI * 4200 * k.tune * t)) + sign(sin(2 * PI * 6100 * t))) * 0.2
-                hp = 0.7 * (hp + m - pv); pv = m; hp * 0.5 * min(1.0, t / 0.003) * exp(-(if (kit == DrumKit.METAL) 1.8 else 2.4) * t) } }
+            // Closed hat: tight metallic partials + filtered noise, plus a low "chick" of the two plates closing on acoustic kits.
+            DrumPad.CLOSED_HAT -> if (electronic) { val tight = 55.0 * k.hatTight / k.decay
+                metal(if (kit == DrumKit.TRAP) 0.05 else 0.09, HAT_ANALOG.map { it * k.tune }.toDoubleArray(), true, 0.35, 6500.0, seed) { t -> min(1.0, t / 0.0005) * exp(-tight * t) } }
+                else { val tight = 38.0 * k.hatTight / k.decay * (if (kit == DrumKit.JAZZ_BRUSH) 0.7 else 1.0)
+                    val m = metal(0.16 * k.decay, HAT_ACOUSTIC.map { it * k.tune }.toDoubleArray(), false, 0.45, 5200.0, seed) { t -> min(1.0, t / 0.0008) * (0.75 * exp(-tight * t) + 0.25 * exp(-tight * 2.5 * t)) }
+                    val chick = BQ.bp(1100.0, 1.4); for (i in m.indices) { val t = i.toDouble() / SR; if (t < 0.012) m[i] += chick.p((n() * exp(-300 * t)).toFloat()) * 1.6f }
+                    m }
+            // Open hat: same plates ringing loose — slow decay, slight wobble shimmer, a sizzle tail.
+            DrumPad.OPEN_HAT -> if (electronic) metal(0.45 * k.decay, HAT_ANALOG.map { it * k.tune }.toDoubleArray(), true, 0.3, 6000.0, seed) { t -> min(1.0, t / 0.0007) * exp(-7.5 / k.decay * t) }
+                else metal(0.9 * k.decay, HAT_ACOUSTIC.map { it * k.tune * 0.97 }.toDoubleArray(), false, 0.5, 4200.0, seed) { t ->
+                    min(1.0, t / 0.001) * (0.6 * exp(-4.2 / k.decay * t) + 0.4 * exp(-14 * t)) * (1 + 0.12 * sin(2 * PI * 6.5 * t)) }
+            // Crash-style wash: dense inharmonic partial cloud, bloom after the stick hit, long bright decay.
+            DrumPad.CYMBAL -> { val d = (if (kit == DrumKit.JAZZ_BRUSH) 2.4 else 1.9) * k.cym
+                metal(d, cymbalPartials(16, 2400.0 * k.tune, 12500.0, seed), false, 0.55, 2600.0, seed) { t ->
+                    min(1.0, t / 0.002) * (0.55 * exp(-(if (kit == DrumKit.METAL) 1.6 else 2.1) / k.cym * t) + 0.45 * exp(-9 * t)) * (1 + 0.25 * min(1.0, t / 0.08) * exp(-6 * t)) } }
+            DrumPad.CRASH -> { val d = 2.6 * k.cym
+                metal(d, cymbalPartials(22, 1900.0 * k.tune, 13500.0, seed + 5), false, 0.6, 2000.0, seed) { t ->
+                    min(1.0, t / 0.0025) * (0.6 * exp(-1.5 / k.cym * t) + 0.4 * exp(-7 * t)) * (1 + 0.35 * min(1.0, t / 0.12) * exp(-4 * t)) } }
+            // Ride: defined stick "ping" + bell partials over a low, controlled wash.
+            DrumPad.RIDE -> { val wash = metal(2.8 * k.cym, cymbalPartials(14, 3000.0 * k.tune, 11000.0, seed + 9), false, 0.35, 2800.0, seed) { t -> 0.35 * min(1.0, t / 0.003) * exp(-1.1 / k.cym * t) }
+                for (i in wash.indices) { val t = i.toDouble() / SR; val f0 = 520.0 * k.tune
+                    wash[i] += ((sin(2 * PI * f0 * 2.76 * t) * 0.5 + sin(2 * PI * f0 * 5.4 * t) * 0.35 + sin(2 * PI * f0 * 8.9 * t) * 0.2) * exp(-6 * t) + n() * 0.6 * exp(-400 * t)).toFloat() * 0.45f }
+                wash }
             DrumPad.COWBELL -> gen(0.4) { t -> (sign(sin(2 * PI * 540 * t)) + sign(sin(2 * PI * 800 * t))) * 0.25 * exp(-8 * t) }
             else -> resample(InstrumentSoundGenerator.drum(pad), (k.tune).toFloat())
         }

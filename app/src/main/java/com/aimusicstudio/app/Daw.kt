@@ -29,6 +29,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -801,18 +803,25 @@ fun LyricsPanel(vm: StudioViewModel, t: Track) {
 @Composable
 fun DrumKitView(vm: StudioViewModel, kit: DrumKit, modifier: Modifier) {
     val shell = when (kit) { DrumKit.MASK_METAL, DrumKit.METAL, DrumKit.DJENT -> Color(0xFF1A1A1A); DrumKit.PROG_ARENA -> Color(0xFFB8860B)
-        DrumKit.TR808, DrumKit.VINTAGE909, DrumKit.ELECTRONIC, DrumKit.HOUSE, DrumKit.TRAP, DrumKit.DNB -> Color(0xFF444C5C); DrumKit.JAZZ_BRUSH, DrumKit.ACOUSTIC -> Color(0xFFB0782E); else -> Color(0xFF9E1E1E) }
+        DrumKit.TR808, DrumKit.VINTAGE909, DrumKit.ELECTRONIC, DrumKit.HOUSE, DrumKit.TRAP, DrumKit.DNB -> Color(0xFF444C5C); DrumKit.JAZZ_BRUSH, DrumKit.ACOUSTIC -> Color(0xFFB0782E); DrumKit.PEARL_STAGE -> Color(0xFF1F4E8C)
+        DrumKit.DW_COLLECTOR -> Color(0xFF6B2E1A); DrumKit.SABIAN_AA -> Color(0xFF2E2E2E); else -> Color(0xFF9E1E1E) }
     // (pad, x, y, diameter) in fractions of the area width/height
     val parts = listOf(Triple(DrumPad.CYMBAL, 0.12f to 0.05f, 0.24f), Triple(DrumPad.OPEN_HAT, 0.78f to 0.02f, 0.2f), Triple(DrumPad.CLOSED_HAT, 0.02f to 0.42f, 0.17f),
         Triple(DrumPad.HIGH_TOM, 0.36f to 0.08f, 0.14f), Triple(DrumPad.MID_TOM, 0.52f to 0.08f, 0.15f), Triple(DrumPad.LOW_TOM, 0.72f to 0.42f, 0.2f),
         Triple(DrumPad.SNARE, 0.2f to 0.5f, 0.17f), Triple(DrumPad.KICK, 0.4f to 0.38f, 0.26f), Triple(DrumPad.RIMSHOT, 0.18f to 0.84f, 0.09f),
-        Triple(DrumPad.CLAP, 0.88f to 0.82f, 0.09f), Triple(DrumPad.COWBELL, 0.66f to 0.18f, 0.08f))
+        Triple(DrumPad.CLAP, 0.88f to 0.82f, 0.09f), Triple(DrumPad.COWBELL, 0.66f to 0.18f, 0.08f),
+        Triple(DrumPad.CRASH, 0.0f to 0.0f, 0.12f), Triple(DrumPad.RIDE, 0.9f to 0.28f, 0.1f))
     BoxWithConstraints(modifier.background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF15161A), Color(0xFF2A2018)))).padding(4.dp)) {
         val W = maxWidth; val H = maxHeight
         parts.forEach { (p, pos, d) -> var hit by remember { mutableStateOf(false) }
-            val cym = p == DrumPad.CYMBAL || p == DrumPad.OPEN_HAT || p == DrumPad.CLOSED_HAT
+            val cym = p == DrumPad.CYMBAL || p == DrumPad.OPEN_HAT || p == DrumPad.CLOSED_HAT || p == DrumPad.RIDE || p == DrumPad.CRASH
+            val scale by androidx.compose.animation.core.animateFloatAsState(if (hit) (if (cym) 1.1f else 0.92f) else 1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 900f), label = "padScale")
+            val glow by androidx.compose.animation.core.animateFloatAsState(if (hit) 1f else 0f, androidx.compose.animation.core.tween(if (hit) 30 else 260), label = "padGlow")
             val size = minOf(W * d, H * (d * 1.9f))
-            Box(Modifier.offset(x = W * pos.first, y = H * pos.second).size(size).clip(androidx.compose.foundation.shape.CircleShape)
+            Box(Modifier.offset(x = W * pos.first, y = H * pos.second).size(size)
+                .graphicsLayer { scaleX = scale; scaleY = scale; rotationZ = if (cym) glow * 4f else 0f }
+                .drawBehind { drawCircle(Color(0xFFFFD27A).copy(alpha = glow * 0.55f), radius = this.size.minDimension * 0.62f) }
+                .clip(androidx.compose.foundation.shape.CircleShape)
                 .background(if (cym) androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(if (hit) 0xFFFFF3B0 else 0xFFE8C66A), Color(0xFF9C7A2A), Color(0xFFC9A34A)))
                     else androidx.compose.ui.graphics.Brush.radialGradient(listOf(if (hit) Color.White else Color(0xFFF2EFE6), Color(0xFFD9D4C6), shell, shell)))
                 .border(if (cym) 1.dp else 3.dp, if (cym) Color(0xFF6E5520) else Color(0xFFBFBFBF), androidx.compose.foundation.shape.CircleShape)

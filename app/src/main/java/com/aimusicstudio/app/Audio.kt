@@ -118,7 +118,8 @@ object InstrumentSoundGenerator {
             DrumPad.COWBELL -> gen(0.35) { t -> (sq(545 * t) + sq(815 * t)) * 0.3 * exp(-9 * t) }
             DrumPad.CLOSED_HAT -> gen(0.06) { t -> rnd.nextDouble(-1.0, 1.0) * exp(-70 * t) * 0.5 }
             DrumPad.OPEN_HAT -> gen(0.4) { t -> rnd.nextDouble(-1.0, 1.0) * exp(-8 * t) * 0.4 }
-            DrumPad.CYMBAL -> gen(1.2) { t -> rnd.nextDouble(-1.0, 1.0) * exp(-3 * t) * 0.35 }
+            DrumPad.CYMBAL, DrumPad.CRASH -> gen(1.2) { t -> rnd.nextDouble(-1.0, 1.0) * exp(-3 * t) * 0.35 }
+            DrumPad.RIDE -> gen(1.5) { t -> (rnd.nextDouble(-1.0, 1.0) * 0.25 + sin(2 * PI * 1435 * t) * 0.3 * exp(-6 * t)) * exp(-1.5 * t) * 0.4 }
         }
     }
 
