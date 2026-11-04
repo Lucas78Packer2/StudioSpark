@@ -825,7 +825,10 @@ fun DrumKitView(vm: StudioViewModel, kit: DrumKit, modifier: Modifier) {
                 .background(if (cym) androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(if (hit) 0xFFFFF3B0 else 0xFFE8C66A), Color(0xFF9C7A2A), Color(0xFFC9A34A)))
                     else androidx.compose.ui.graphics.Brush.radialGradient(listOf(if (hit) Color.White else Color(0xFFF2EFE6), Color(0xFFD9D4C6), shell, shell)))
                 .border(if (cym) 1.dp else 3.dp, if (cym) Color(0xFF6E5520) else Color(0xFFBFBFBF), androidx.compose.foundation.shape.CircleShape)
-                .pointerInput(p, kit) { detectTapGestures(onPress = { hit = true; vm.triggerPad(p, kit); tryAwaitRelease(); hit = false }) }
+                .pointerInput(p, kit) { val sz = this@pointerInput.size; detectTapGestures(onPress = { off -> hit = true
+                    // Velocity from where the stick lands: dead centre = full hit, rim = softer (like a real head/bow vs edge).
+                    val cx = sz.width / 2f; val cy = sz.height / 2f; val dist = kotlin.math.hypot(off.x - cx, off.y - cy) / kotlin.math.max(1f, kotlin.math.min(cx, cy))
+                    vm.triggerPad(p, kit, (1f - dist.coerceIn(0f, 1f) * 0.6f)); tryAwaitRelease(); hit = false }) }
                 .semantics { contentDescription = "${p.label} – ${kit.label}"; role = Role.Button }, contentAlignment = Alignment.Center) {
                 Text(p.label, color = if (cym) Color(0xFF3A2A00) else Color(0xFF222222), fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
         }

@@ -164,10 +164,15 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
     fun stopRecording() { viewModelScope.launch(Dispatchers.IO) { recorder.stop() } }
 
     // ---- Studio gear: kits, guitars, amps, pedals ----
-    fun triggerPad(pad: DrumPad, kit: DrumKit? = null) { val k = kit ?: session.kit; viewModelScope.launch(Dispatchers.Default) { player.oneShot(Fx.kitDrum(k, pad), session.masterVolume) }; captureLive(pad = pad) }
+    private var hitCounter = 0
+    /** Live pad hit: velocity-sensitive + per-hit variation; closed hat chokes a ringing open hat (and open re-strikes itself). */
+    fun triggerPad(pad: DrumPad, kit: DrumKit? = null, velocity: Float = 0.85f) { val k = kit ?: session.kit; val seed = hitCounter++
+        viewModelScope.launch(Dispatchers.Default) {
+            val tag = if (pad == DrumPad.OPEN_HAT || pad == DrumPad.CLOSED_HAT) "hat" else null
+            player.oneShot(Fx.drumHit(k, pad, velocity, seed), session.masterVolume, tag = tag, choke = tag) }; captureLive(pad = pad) }
     fun triggerTrackNote(t: Track, pitch: Int) { viewModelScope.launch(Dispatchers.Default) {
         val x = when (t.kind) { TrackKind.GUITAR -> Fx.guitarNote(t.guitar, pitch, 0.6); else -> InstrumentSoundGenerator.note(t.waveform, pitch, 0.35) }
-        t.pedals.forEach { Fx.pedal(x, it, session.tempoBPM) }; Fx.amp(x, t); player.oneShot(x, session.masterVolume * t.volume) } ; captureLive(pitch = pitch, track = t) }
+        player.oneShot(Fx.liveChain(x, t, session.tempoBPM), session.masterVolume * t.volume) } ; captureLive(pitch = pitch, track = t) }
     /** Select one kit for a drum/track: stores on the track, mirrors to session.kit (step sequencer), auditions the kick. */
     fun selectKit(trackId: String?, k: DrumKit) { update { s -> s.copy(kit = k, tracks = s.tracks.map { if (it.id == trackId) it.copy(kit = k) else it }) }; triggerPad(DrumPad.KICK, k); status = "Kit: ${k.label}" }
     /** Song concept → lyrics track songInfo/genre/theme. */
@@ -217,8 +222,8 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
     fun keyDown(trackId: String, pitch: Int): Double? {
         val t = session.tracks.firstOrNull { it.id == trackId } ?: return null
         viewModelScope.launch(Dispatchers.Default) {
-            val x = when (t.kind) { TrackKind.GUITAR -> Fx.guitarNote(t.guitar, pitch, 0.6); else -> InstrumentSoundGenerator.note(t.waveform, pitch, if (t.waveform == SynthWaveform.STRINGS || t.waveform == SynthWaveform.CHOIR) 0.9 else 0.45, acid = t.name.contains("303") || t.name.contains("Acid", true)) }
-            t.pedals.forEach { Fx.pedal(x, it, session.tempoBPM) }; Fx.amp(x, t); player.oneShot(x, session.masterVolume * t.volume) }
+            val x = when (t.kind) { TrackKind.GUITAR -> Fx.guitarNote(t.guitar, pitch, 1.2); else -> InstrumentSoundGenerator.note(t.waveform, pitch, if (t.waveform == SynthWaveform.STRINGS || t.waveform == SynthWaveform.CHOIR) 0.9 else 0.45, acid = t.name.contains("303") || t.name.contains("Acid", true)) }
+            player.oneShot(Fx.liveChain(x, t, session.tempoBPM), session.masterVolume * t.volume) }
         lastKeyPitch = pitch
         // Free-play: sound only. Notes are captured only while keyboard-recording, or when this track is armed during playback.
         return if (isPlaying && (kbRecording && armedTrackId == trackId || (liveCapture && armedTrackId == trackId))) playhead else null
@@ -353,7 +358,11 @@ class StudioViewModel(app: Application) : AndroidViewModel(app) {
                     override fun onStart(u: String?) {}; override fun onDone(u: String?) { latch.countDown() }
                     @Deprecated("") override fun onError(u: String?) { latch.countDown() } })
                 tts.synthesizeToFile(ln, android.os.Bundle(), f, uid); latch.await(20, java.util.concurrent.TimeUnit.SECONDS)
-                runCatching { if (f.length() > 44) { val polished = Fx.vocalPolish(AudioDecoder.decode(f).copyOf(), t.vocalStyle); MixRenderer.writeWavInterleaved(f, polished, 1) } }
+                runCatching { if (f.length() > 44) { val raw = AudioDecoder.decode(f).copyOf()
+                    // Sung feel: fit the phrase to the beat grid, gender pitch nudge when the engine had no gendered voice, style-scaled vibrato.
+                    val ps = if (v == null) when (t.voiceGender) { VoiceGender.MALE -> 0.94f; VoiceGender.FEMALE -> 1.05f; else -> 1f } else 1f
+                    val vib = when (t.vocalStyle) { VocalStyle.RAP -> 0f; VocalStyle.BALLAD, VocalStyle.SOUL -> 0.8f; else -> 0.5f }
+                    val polished = Fx.vocalPolish(if (t.vocalStyle == VocalStyle.RAP) Fx.singify(raw, session.tempoBPM, ps, 0f) else Fx.singify(raw, session.tempoBPM, ps, vib), t.vocalStyle); MixRenderer.writeWavInterleaved(f, polished, 1) } }
                 val d = AudioDecoder.durationOf(f)
                 if (d > 0) { clips += AudioClip(fileName = f.name, startTime = time, duration = d); time += kotlin.math.ceil((d + 0.15) / bar).coerceAtLeast(1.0) * bar }
                 k++

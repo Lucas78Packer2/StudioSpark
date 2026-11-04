@@ -72,9 +72,15 @@ object Fx {
                 for (i in x.indices) x[i] = x[i] + (y[i] - x[i]) * (0.35f + a * 0.5f) } }
             PedalType.REVERB -> reverb(x, a)
             // Cry-baby-style wah: resonant bandpass swept 450 Hz → 2.2 kHz (LFO-driven "auto" foot), Q ~ 4.
-            PedalType.WAH -> { var lp = 0f; var bp = 0f; val q = 0.22f
-                for (i in x.indices) { val sw = 0.5 + 0.5 * sin(2 * PI * (0.5 + a * 3) * i / SR); val fc = 450 * (2200.0 / 450).pow(sw)
-                    val f = (2 * sin(PI * fc / SR)).toFloat(); val hp = x[i] - lp - q * bp; bp += f * hp; lp += f * bp; x[i] = x[i] * (1 - a) + bp * a * 1.6f } }
+            // Foot sweep is tempo-synced (one rock per beat, slower at low amount), shaped like a real treadle (eased raised-cosine),
+            // nudged by pick dynamics, and parameter-smoothed so the filter never zips.
+            PedalType.WAH -> { var lp = 0f; var bp = 0f; val q = 0.2f; var env = 0f; var fcS = 800.0
+                val rate = 60.0 / bpm * (if (a < 0.4f) 2.0 else 1.0)
+                for (i in x.indices) { env = max(abs(x[i]), env * 0.9993f)
+                    val ph = (i.toDouble() / SR / rate) % 1.0; val c = 0.5 - 0.5 * cos(2 * PI * ph); val sw = (c * c * (3 - 2 * c) * 0.8 + min(1.0, env * 3.0) * 0.2).coerceIn(0.0, 1.0)
+                    fcS += (420 * (2300.0 / 420).pow(sw) - fcS) * 0.004
+                    val f = (2 * sin(PI * fcS / SR)).toFloat(); val hp = x[i] - lp - q * bp; bp += f * hp; lp += f * bp; x[i] = x[i] * (1 - a * 0.85f) + bp * (0.6f + a) * 1.3f }
+                matchLevel(x, inRms, 1.1f) }
             PedalType.COMPRESSOR -> MixRenderer.applyCompressor(x, TrackCompressorSettings(true, -10f - a * 25f, 2f + a * 8f, 8f, 120f, a * 10f))
             PedalType.TREMOLO -> for (i in x.indices) x[i] *= (1 - a * (0.5f + 0.5f * sin(2 * PI * 5 * i / SR).toFloat()))
             // Fuzz-Face-style: massive gain, asymmetric (germanium-ish bias), gated sputter at low input, woolly top.
@@ -91,8 +97,13 @@ object Fx {
                 if (j >= 0) { x[i] = src[i] * 0.7f + x[j] * (0.3f + a * 0.5f) } } }
             PedalType.VIBRATO -> { val src = x.copyOf(); for (i in x.indices) { val d = 0.003 * SR + 0.003 * SR * a * sin(2 * PI * 5.5 * i / SR); val j = i - d; val k = j.toInt()
                 if (k >= 0 && k + 1 < src.size) x[i] = src[k] + (src[k + 1] - src[k]) * (j - k).toFloat() } }
-            PedalType.OCTAVER -> { var lp = 0f; var flip = 1f; var last = 0f
-                for (i in x.indices) { lp += 0.02f * (x[i] - lp); if (lp > 0 && last <= 0) flip = -flip; last = lp; x[i] = x[i] * (1 - a * 0.5f) + abs(lp) * flip * a * 2.5f } }
+            PedalType.OCTAVER -> { val t1 = BQ.lp(380.0, 0.6); val t2 = BQ.lp(380.0, 0.6); val hp = BQ.hp(60.0); val sm1 = BQ.lp(420.0); val sm2 = BQ.lp(600.0)
+                var env = 0f; var flip = 1f; var armed = true; var wasPos = false
+                for (i in x.indices) { val tr = t2.p(t1.p(hp.p(x[i]))); env = max(abs(tr), env * 0.9985f); val h = env * 0.12f
+                    if (armed && tr > h && !wasPos) { flip = -flip; wasPos = true; armed = false } else if (tr < -h) { wasPos = false; armed = true }
+                    val sub = sm2.p(sm1.p(flip * env)) * 1.8f
+                    x[i] = x[i] * (1 - a * 0.45f) + sub * a * 1.6f }
+                matchLevel(x, inRms, 1.1f) }
             PedalType.BITCRUSH -> { val lv = (64 - a * 58).coerceAtLeast(3f); val hold = 1 + (a * 12).toInt(); var h = 0f
                 for (i in x.indices) { if (i % hold == 0) h = round(x[i] * lv) / lv; x[i] = h } }
             PedalType.AUTOWAH -> { var env = 0f; var lp = 0f; var bp = 0f
@@ -139,18 +150,86 @@ object Fx {
             for (i in x.indices) { val s1 = tanh(x[i] * g1 + bias) - tanh(bias); val s2 = tanh(inter.p(s1) * g2 + bias * 0.5f) - tanh(bias * 0.5f); x[i] = coup.p(s2) * 0.55f } }
         else for (i in x.indices) { val y = x[i] * g; x[i] = coup.p(tanh(y + bias) - tanh(bias)) * norm * 0.5f }
         // Cabinet: speaker low cut, resonance bump, cone break-up roll-off (opened by Presence), presence peak.
-        if (acoustic) { x.run(BQ.highShelf(6000.0, 2.0)) } else {
-            x.run(BQ.hp(if (isBass) 35.0 else 80.0))
-            x.run(BQ.lowShelf(if (isBass) 90.0 else 120.0, if (isBass) 4.0 else 2.5))
-            val cut = (if (isBass) 3200.0 else 4300.0) + presence * 2600.0
-            x.run(BQ.lp(cut, 0.9)); x.run(BQ.lp(cut * 1.3, 0.6))
-            x.run(BQ.peak(if (isBass) 1800.0 else 3200.0, 1.2, (presence - 0.5) * 8.0))
-            if (name.contains("4X12") || name.contains("RECT") || name.contains("JCM") || hiGain) x.run(BQ.peak(1900.0, 3.0, -2.5)) // 4x12 comb notch
-        }
+        if (acoustic) { x.run(BQ.highShelf(6000.0, 2.0)) } else cab(x, cabFor(m, isBass, hiGain), presence)
         matchLevel(x, inRms, 1.6f)
         val out = 0.2f + master * 1.4f; for (i in x.indices) x[i] = tanh(x[i] * out)
     }
 
+
+    /** Speaker cabinet families, chosen from the amp's character (no UI needed). */
+    enum class Cab { V30_4X12, GREENBACK_4X12, OPEN_2X12, TWEED_1X12, BASS_8X10 }
+    fun cabFor(m: AmpModel, isBass: Boolean, hiGain: Boolean): Cab { val n = m.name
+        return when { isBass -> Cab.BASS_8X10; hiGain || n.contains("RECT") || n.contains("5150") || n.contains("6505") || n.contains("MARK") -> Cab.V30_4X12
+            n.contains("BRIT") || n.contains("PLEXI") || n.contains("JCM") || n.contains("JTM") -> Cab.GREENBACK_4X12
+            n.contains("TWEED") || n.contains("DELUXE") -> Cab.TWEED_1X12; else -> Cab.OPEN_2X12 } }
+    /** IR-like cabinet: a close dynamic mic on the cone (proximity bass, cone resonance, 2–5 kHz presence ridge, breakup notches, steep
+     *  rolloff) blended with a darker room mic (~1.3 ms later → gentle comb, less highs). Presence opens the close mic's top. */
+    fun cab(x: FloatArray, c: Cab, presence: Float) {
+        // (resonance Hz, low-mid dip Hz, presence ridge Hz, notch Hz, rolloff Hz)
+        val (res, dip, ridge, notch, roll) = when (c) {
+            Cab.V30_4X12 -> listOf(105.0, 420.0, 2800.0, 1900.0, 5200.0); Cab.GREENBACK_4X12 -> listOf(95.0, 500.0, 2200.0, 3600.0, 4800.0)
+            Cab.OPEN_2X12 -> listOf(120.0, 350.0, 3400.0, 2400.0, 6200.0); Cab.TWEED_1X12 -> listOf(130.0, 700.0, 2600.0, 3900.0, 5000.0)
+            Cab.BASS_8X10 -> listOf(60.0, 300.0, 1600.0, 1100.0, 3600.0) }
+        val room = x.copyOf()
+        val close = listOf(BQ.hp(if (c == Cab.BASS_8X10) 35.0 else 75.0, 0.8), BQ.peak(res, 2.2, 5.0), BQ.lowShelf(180.0, 1.5), BQ.peak(dip, 1.0, -3.0),
+            BQ.peak(ridge, 1.3, 3.5 + (presence - 0.5) * 6.0), BQ.peak(ridge * 1.6, 2.0, 1.5), BQ.peak(notch, 4.0, -4.5), BQ.peak(notch * 2.3, 5.0, -3.0),
+            BQ.lp(roll + presence * 2200.0, 0.9), BQ.lp((roll + presence * 2200.0) * 1.25, 0.6))
+        for (i in x.indices) { var v = x[i]; for (f in close) v = f.p(v); x[i] = v }
+        val rf = listOf(BQ.hp(70.0), BQ.peak(res * 0.9, 1.5, 3.0), BQ.peak(800.0, 0.8, 1.5), BQ.lp(roll * 0.55, 0.7), BQ.lp(roll * 0.7, 0.6))
+        for (i in room.indices) { var v = room[i]; for (f in rf) v = f.p(v); room[i] = v }
+        val dly = (0.0013 * SR).toInt(); val mixR = if (c == Cab.OPEN_2X12 || c == Cab.TWEED_1X12) 0.32f else 0.22f
+        for (i in x.indices.reversed()) x[i] = x[i] * (1 - mixR) + (if (i >= dly) room[i - dly] else 0f) * mixR
+    }
+
+    /** Live instrument chain: pads the note with an FX tail (delay repeats, reverb, octave/amp ring) so time-based pedals
+     *  aren't cut off at the note end, then runs pedals → amp. */
+    fun liveChain(x0: FloatArray, t: Track, bpm: Int): FloatArray {
+        val timeFx = t.pedals.any { it.on && (it.type == PedalType.DELAY || it.type == PedalType.REVERB) }
+        val tail = if (timeFx) (60.0 / bpm * 2.5 * SR).toInt().coerceAtMost(SR * 3) else (0.25 * SR).toInt()
+        val x = x0.copyOf(x0.size + tail)
+        t.pedals.forEach { pedal(x, it, bpm) }; amp(x, t)
+        var end = x.size; while (end > x0.size && abs(x[end - 1]) < 1e-4f) end--
+        val y = x.copyOf(end); val fade = min(256, y.size); for (i in 0 until fade) y[y.size - 1 - i] *= i.toFloat() / fade
+        return y
+    }
+
+    /** Make TTS phrasing feel sung: fit each line to the beat grid with an overlap-add stretch (pitch kept),
+     *  add delayed-onset vibrato on the tail of the phrase, and a gender/style formant-safe pitch nudge by resample. */
+    fun singify(x: FloatArray, bpm: Int, pitchShift: Float = 1f, vibrato: Float = 0.5f): FloatArray {
+        if (x.size < SR / 10) return x
+        val beat = 60.0 / bpm * SR
+        val d = x.size.toDouble(); val beats = max(1.0, round(d / beat)); val target = (beats * beat).coerceIn(d * 0.85, d * 1.2)
+        var y = olaStretch(x, target / d)
+        if (abs(pitchShift - 1f) > 0.01f) y = olaStretch(resample(y, pitchShift), pitchShift.toDouble())
+        // Vibrato: ~5.5 Hz, depth ramps in after 250 ms (singers settle then vibrate), ±~30 cents.
+        val src = y.copyOf(); val base = 0.006 * SR; val maxDep = 0.00035 * SR * vibrato * 2
+        for (i in y.indices) { val t = i.toDouble() / SR; val dep = maxDep * min(1.0, max(0.0, (t - 0.25) / 0.6))
+            val j = i - base - dep * sin(2 * PI * 5.5 * t); y[i] = if (j >= 0) interp(src, j) else src[i] }
+        return y
+    }
+    /** Simple windowed overlap-add time stretch (ratio > 1 = longer). */
+    fun olaStretch(x: FloatArray, ratio: Double): FloatArray {
+        if (abs(ratio - 1.0) < 0.01) return x
+        val win = (0.04 * SR).toInt(); val hopOut = win / 4; val hopIn = hopOut / ratio
+        val n = (x.size * ratio).toInt(); val out = FloatArray(n + win); val norm = FloatArray(n + win)
+        val w = FloatArray(win) { (0.5 - 0.5 * cos(2 * PI * it / win)).toFloat() }
+        var o = 0; var ii = 0.0
+        while (o < n) { val s = ii.toInt(); for (k in 0 until win) { val si = s + k; if (si >= x.size) break; out[o + k] += x[si] * w[k]; norm[o + k] += w[k] }
+            o += hopOut; ii += hopIn }
+        return FloatArray(n) { if (norm[it] > 1e-3f) out[it] / norm[it] else 0f }
+    }
+
+    /** Velocity + humanised variation on top of the cached kit voice: louder = brighter + slightly sharper,
+     *  softer = darker; each hit gets a seeded ±~1.5% tune and ±1 dB level wobble so repeats aren't clones. */
+    fun drumHit(kit: DrumKit, pad: DrumPad, vel: Float = 0.85f, variation: Int = 0): FloatArray {
+        val base = kitDrum(kit, pad); val v = vel.coerceIn(0.05f, 1f); val r = Random(variation * 7919 + pad.ordinal * 31 + kit.ordinal)
+        val rate = (1f + (r.nextFloat() - 0.5f) * 0.03f + (v - 0.8f) * 0.02f)
+        val y = resample(base, rate)
+        val gain = v.pow(1.4f) * 10f.pow((r.nextFloat() - 0.5f) * 0.1f) / 0.85f.pow(1.4f)
+        val c = (0.25f + v * 0.75f).coerceAtMost(1f); var lp = 0f
+        for (i in y.indices) { lp += c * (y[i] - lp); y[i] = (lp + (y[i] - lp) * (v - 0.4f).coerceAtLeast(0f)) * gain }
+        return y
+    }
 
     /** Post-TTS vocal chain: rumble cut, de-box, presence, air, gentle compression, optional doubler + short plate.
      *  Pop/Rock/Country get a light ADT-style double (slightly detuned, ~18 ms late); Ballad/Soul get more space. */
@@ -174,13 +253,16 @@ object Fx {
     }
 
     /** Freeverb-lite: 4 parallel combs + 2 allpass. */
-    fun reverb(x: FloatArray, mix: Float) {
-        val combs = intArrayOf(1557, 1617, 1491, 1422); val out = FloatArray(x.size)
+    fun reverb(x: FloatArray, mix: Float, size: Float = 0.5f, damp: Float = 0.35f) {
+        // Full Freeverb topology: 8 damped combs (decorrelated tunings), 4 series allpasses, ~14 ms predelay, HP'd input so lows don't mud up.
+        val combs = intArrayOf(1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617); val out = FloatArray(x.size)
+        val pre = (0.014 * SR).toInt(); val fb = 0.78f + size.coerceIn(0f, 1f) * 0.18f; val d1 = damp.coerceIn(0f, 0.9f); val inHp = BQ.hp(180.0)
+        val inp = FloatArray(x.size) { if (it >= pre) x[it - pre] else 0f }; for (i in inp.indices) inp[i] = inHp.p(inp[i])
         for (d in combs) { val buf = FloatArray(d); var k = 0; var lp = 0f
-            for (i in x.indices) { val y = buf[k]; lp = y * 0.8f + lp * 0.2f; buf[k] = x[i] + lp * 0.84f; k = (k + 1) % d; out[i] += y * 0.25f } }
-        for (d in intArrayOf(556, 441)) { val buf = FloatArray(d); var k = 0
+            for (i in inp.indices) { val y = buf[k]; lp = y * (1 - d1) + lp * d1; buf[k] = inp[i] * 0.3f + lp * fb; k = (k + 1) % d; out[i] += y * 0.125f } }
+        for (d in intArrayOf(556, 441, 341, 225)) { val buf = FloatArray(d); var k = 0
             for (i in out.indices) { val b = buf[k]; val y = -out[i] + b; buf[k] = out[i] + b * 0.5f; k = (k + 1) % d; out[i] = y } }
-        for (i in x.indices) x[i] = x[i] * (1 - mix * 0.5f) + out[i] * mix
+        for (i in x.indices) x[i] = x[i] * (1 - mix * 0.5f) + out[i] * mix * 2.2f
     }
 
     /** Karplus-Strong plucked string with pick-position comb, pick transient, interpolated tuning and body resonances

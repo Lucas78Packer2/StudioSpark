@@ -207,7 +207,15 @@ object MixRenderer {
         if (s.drumPattern.isEnabled) {
             var time = 0.0; var step = 0
             while (time < s.length) {
-                for ((pad, row) in s.drumPattern.steps) if (row[step % 16]) { val v = Fx.kitDrum(s.kit, pad); val o = (time * SR).toInt()
+                val st = step % 16
+                for ((pad, row) in s.drumPattern.steps) if (row[st]) {
+                    // Accent groove: downbeats strongest, off-8ths medium, 16ths lighter; seeded per hit so loops breathe but stay repeatable.
+                    val vel = when { st % 4 == 0 -> 0.95f; st % 2 == 0 -> 0.82f; else -> 0.7f } * (if (pad == DrumPad.CLOSED_HAT || pad == DrumPad.RIDE) 0.92f else 1f)
+                    var v = Fx.drumHit(s.kit, pad, vel, step); val o = (time * SR).toInt()
+                    // Hi-hat choke: a closed hat later in the loop cuts a ringing open hat (short 6 ms fade, like the pedal closing).
+                    if (pad == DrumPad.OPEN_HAT) { val cr = s.drumPattern.steps[DrumPad.CLOSED_HAT]
+                        if (cr != null) { var k = 1; while (k < 16 && !cr[(st + k) % 16]) k++
+                            if (k < 16) { val cut = (k * s.stepSeconds * SR).toInt(); if (cut < v.size) { val fade = (0.006 * SR).toInt(); v = v.copyOf(cut + fade); for (i in 0 until fade) v[cut + i] *= 1f - i.toFloat() / fade } } } }
                     for (i in v.indices) { if (o + i >= n) break; l[o + i] += v[i] * 0.7f; r[o + i] += v[i] * 0.7f } }
                 time += s.stepSeconds; step++
             }
@@ -271,7 +279,7 @@ class AudioPlayer {
     // Live voices: ONE always-running stream track mixes every tap (pads, keys, strings, previews).
     // v1.2.5 built a new MODE_STATIC float AudioTrack per tap; many devices reject/never start those
     // (static float + exhausted track slots), so taps were silent. A streaming mixer is reliable.
-    private class Voice(val x: FloatArray, val g: Float) { var pos = 0 }
+    private class Voice(val x: FloatArray, val g: Float, val tag: String?) { var pos = 0; @Volatile var fade = -1 }
     private val voices = java.util.concurrent.ConcurrentLinkedQueue<Voice>()
     @Volatile private var liveThread: Thread? = null
     private fun ensureLive() { if (liveThread?.isAlive == true) return; synchronized(this) { if (liveThread?.isAlive == true) return
@@ -283,9 +291,9 @@ class AudioPlayer {
             while (true) {
                 java.util.Arrays.fill(buf, 0f); var peak = 0f
                 val it = voices.iterator()
-                while (it.hasNext()) { val v = it.next(); val n = min(block, v.x.size - v.pos)
-                    for (k in 0 until n) buf[k] += v.x[v.pos + k] * v.g
-                    v.pos += n; if (v.pos >= v.x.size) it.remove() }
+                while (it.hasNext()) { val v = it.next(); val n = min(block, v.x.size - v.pos); val fl = CHOKE_FADE
+                    for (k in 0 until n) { var g = v.g; if (v.fade >= 0) { g *= max(0f, 1f - v.fade.toFloat() / fl); v.fade++ }; buf[k] += v.x[v.pos + k] * g }
+                    v.pos += n; if (v.pos >= v.x.size || v.fade >= fl) it.remove() }
                 for (k in 0 until block) { val y = buf[k].coerceIn(-1f, 1f); buf[k] = y; peak = max(peak, abs(y)) }
                 if (peak > 0f) { level = peak; idle = 0 } else idle++
                 at.write(buf, 0, block, AudioTrack.WRITE_BLOCKING)
@@ -295,7 +303,10 @@ class AudioPlayer {
         }.also { it.priority = Thread.MAX_PRIORITY; it.start() } } }
 
     /** Fire-and-forget trigger for pads, synth keys, strings and sample previews — sounds with transport stopped or playing. */
-    fun oneShot(x: FloatArray, gain: Float = 1f) { if (x.isEmpty()) return; voices.add(Voice(x, gain)); ensureLive() }
+    fun oneShot(x: FloatArray, gain: Float = 1f, tag: String? = null, choke: String? = null) { if (x.isEmpty()) return
+        if (choke != null) voices.forEach { if (it.tag == choke && it.fade < 0) it.fade = 0 }
+        voices.add(Voice(x, gain, tag)); ensureLive() }
+    private val CHOKE_FADE = (0.008 * SR).toInt()
     /** Private review of a recorded take: stops other preview voices first. */
     fun audition(x: FloatArray, gain: Float = 1f) { voices.clear(); oneShot(x, gain) }
     fun stopPreview() = voices.clear()
