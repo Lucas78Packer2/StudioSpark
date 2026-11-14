@@ -89,6 +89,10 @@ object StudioLayout {
                 Box(Modifier.width(1.dp).height(24.dp).background(p.line))
                 ToolButton("Split", icon = Icons.Default.ContentCut) { vm.splitClip(t, c, vm.position) }
                 ToolButton("Duplicate", icon = Icons.Default.ContentCopy) { vm.duplicateClip(t, c) }
+                ToolButton("Silence trim", icon = Icons.Default.ContentCut) { vm.silenceTrimClip(t, c) }
+                val fades = listOf(0L to "none", ENGINE_SR / 100L to "10 ms", vm.project.samplesPerBeat to "1 beat", vm.project.samplesPerBar to "1 bar")
+                Dropdown("", "Fade in: ${fades.firstOrNull { it.first == c.fadeIn }?.second ?: "custom"}", fades, { it.second }) { vm.setClipFade(t, c, fadeIn = it.first) }
+                Dropdown("", "Fade out: ${fades.firstOrNull { it.first == c.fadeOut }?.second ?: "custom"}", fades, { it.second }) { vm.setClipFade(t, c, fadeOut = it.first) }
                 ToolButton("Trim −1 bar") { vm.trimClip(t, c, -1) }; ToolButton("Trim +1 bar") { vm.trimClip(t, c, 1) }
                 ToolButton("Stretch ×2") { vm.stretchClip(t, c, 2f) }; ToolButton("Shrink ½") { vm.stretchClip(t, c, 0.5f) }
                 ToolButton("Polish", icon = Icons.Default.AutoFixHigh) { vm.polishClip(t, c) }
@@ -185,15 +189,26 @@ private fun Modifier.onWidth(f: (Float) -> Unit) = this.then(Modifier.onSizeChan
     val p = LocalPalette.current; val proj = vm.project; val tm = rememberTextMeasurer(); val density = LocalDensity.current
     val laneH = with(density) { LANE_H.toPx() }; val sx by rememberUpdatedState(scrollX); @Suppress("UNUSED_VARIABLE") val r = vm.rev
     var dragClip by remember { mutableStateOf<Pair<Track, Clip>?>(null) }; var dragDx by remember { mutableFloatStateOf(0f) }
+    /** 0 = move the clip, -1 = left trim handle, +1 = right trim handle (selected clip only). */
+    var trimEdge by remember { mutableIntStateOf(0) }
+    val handlePx = with(density) { 24.dp.toPx() }
     val spb = proj.samplesPerBeat.toFloat()
+    /** Selected clip whose left/right handle is under [o] (handles sit just inside each edge). */
+    fun handleHit(o: Offset): Triple<Track, Clip, Int>? { val ti = (o.y / laneH).toInt(); val t = proj.tracks.getOrNull(ti) ?: return null; val c = t.clips.firstOrNull { it.id == vm.selectedClipId } ?: return null
+        val x0 = c.start / spb * pxPerBeat - sx; val x1 = c.end / spb * pxPerBeat - sx
+        return when { o.x in (x0 - handlePx / 2)..(x0 + handlePx) -> Triple(t, c, -1); o.x in (x1 - handlePx)..(x1 + handlePx / 2) -> Triple(t, c, 1); else -> null } }
     fun hit(o: Offset): Pair<Track, Clip?>? { val ti = (o.y / laneH).toInt(); val t = proj.tracks.getOrNull(ti) ?: return null; val s = ((o.x + sx) / pxPerBeat * spb).toLong()
         return t to t.clips.lastOrNull { s in it.start until it.end } }
     Canvas(Modifier.fillMaxSize().semantics { contentDescription = "Edit window lanes" }
         .pointerInput(pxPerBeat, proj) { detectTapGestures(onTap = { o -> hit(o)?.let { (t, c) -> vm.selectedTrackId = t.id; vm.selectedClipId = c?.id } },
             onDoubleTap = { o -> vm.locate(((o.x + sx) / pxPerBeat * spb).toLong()) }) }
         // Horizontal-only: vertical swipes fall through to the lane list's vertical scroll (portrait and landscape).
-        .pointerInput(pxPerBeat, proj) { detectHorizontalDragGestures(onDragStart = { o -> val h = hit(o); if (h?.second != null) { dragClip = h.first to h.second!!; vm.selectedTrackId = h.first.id; vm.selectedClipId = h.second!!.id; dragDx = 0f } else dragClip = null },
-            onDragEnd = { dragClip?.let { (t, c) -> vm.moveClip(t, c, c.start + (dragDx / pxPerBeat * spb).toLong(), true) }; dragClip = null; dragDx = 0f }, onDragCancel = { dragClip = null; dragDx = 0f }) { ch, dx ->
+        .pointerInput(pxPerBeat, proj) { detectHorizontalDragGestures(onDragStart = { o -> val th = handleHit(o)
+                if (th != null) { dragClip = th.first to th.second; trimEdge = th.third; dragDx = 0f; return@detectHorizontalDragGestures }
+                trimEdge = 0; val h = hit(o); if (h?.second != null) { dragClip = h.first to h.second!!; vm.selectedTrackId = h.first.id; vm.selectedClipId = h.second!!.id; dragDx = 0f } else dragClip = null },
+            onDragEnd = { dragClip?.let { (t, c) -> val d = (dragDx / pxPerBeat * spb).toLong()
+                    when (trimEdge) { -1 -> vm.trimClipEdge(t, c, true, c.start + d, true); 1 -> vm.trimClipEdge(t, c, false, c.end + d, true); else -> vm.moveClip(t, c, c.start + d, true) } }
+                dragClip = null; dragDx = 0f; trimEdge = 0 }, onDragCancel = { dragClip = null; dragDx = 0f; trimEdge = 0 }) { ch, dx ->
             ch.consume(); if (dragClip != null) dragDx += dx else setScroll((sx - dx).coerceAtLeast(0f)) } }) {
         val beatsPerBar = (proj.sigNum * 4 / proj.sigDen).coerceAtLeast(1)
         val firstBeat = (scrollX / pxPerBeat).toInt(); val lastBeat = ((scrollX + size.width) / pxPerBeat).toInt() + 1
@@ -204,8 +219,9 @@ private fun Modifier.onWidth(f: (Float) -> Unit) = this.then(Modifier.onSizeChan
             drawLine(p.inset, Offset(0f, y + laneH), Offset(size.width, y + laneH), 1f)
             val col = Color(t.color)
             for (c in t.clips) {
-                val dx = if (dragClip?.second === c) dragDx else 0f
-                val x0 = c.start / spb * pxPerBeat - scrollX + dx; val x1 = c.end / spb * pxPerBeat - scrollX + dx
+                val dragging = dragClip?.second === c
+                val dx = if (dragging && trimEdge == 0) dragDx else 0f
+                val x0 = c.start / spb * pxPerBeat - scrollX + dx + (if (dragging && trimEdge == -1) dragDx else 0f); val x1 = c.end / spb * pxPerBeat - scrollX + dx + (if (dragging && trimEdge == 1) dragDx else 0f)
                 if (x1 < 0 || x0 > size.width) continue
                 val sel = vm.selectedClipId == c.id
                 drawRoundRect(col.copy(alpha = 0.32f), Offset(x0, y + 3f), Size(x1 - x0, laneH - 6f), CornerRadius(4f))
@@ -215,7 +231,12 @@ private fun Modifier.onWidth(f: (Float) -> Unit) = this.then(Modifier.onSizeChan
                     val mid = y + 17f + (laneH - 22f) / 2; val amp = (laneH - 24f) / 2; val step = 2f
                     var x = max(x0, 0f); while (x < min(x1, size.width)) { val tl = ((x - (c.start / spb * pxPerBeat - scrollX + dx)) / pxPerBeat * spb); val src = (c.offset + tl * c.rate).toInt() / AudioPoolBlock
                         val v = pk.getOrElse(src) { 0f } * com.studiospark.app.dsp.Shapers.dbToLin(c.gainDb); drawLine(Color.White.copy(alpha = 0.78f), Offset(x, mid - v * amp), Offset(x, mid + v * amp), 1.2f); x += step } }
-                if (sel) drawRoundRect(p.select, Offset(x0, y + 3f), Size(x1 - x0, laneH - 6f), CornerRadius(4f), style = Stroke(2f))
+                if (c.fadeIn > 0) { val fx = c.fadeIn / spb * pxPerBeat; drawLine(Color.White.copy(alpha = 0.7f), Offset(x0, y + laneH - 4f), Offset(x0 + fx, y + 18f), 1.2f) }
+                if (c.fadeOut > 0) { val fx = c.fadeOut / spb * pxPerBeat; drawLine(Color.White.copy(alpha = 0.7f), Offset(x1 - fx, y + 18f), Offset(x1, y + laneH - 4f), 1.2f) }
+                if (sel) { drawRoundRect(p.select, Offset(x0, y + 3f), Size(x1 - x0, laneH - 6f), CornerRadius(4f), style = Stroke(2f))
+                    // trim handles: drag either edge of the selected clip
+                    val hw = 8f; val hh = laneH * 0.5f; val hy = y + (laneH - hh) / 2
+                    drawRoundRect(p.select, Offset(x0, hy), Size(hw, hh), CornerRadius(3f)); drawRoundRect(p.select, Offset(x1 - hw, hy), Size(hw, hh), CornerRadius(3f)) }
             }
             if (t.notes.isNotEmpty()) { val lo = t.notes.minOf { it.pitch }; val hi = max(lo + 12, t.notes.maxOf { it.pitch }); val h = laneH - 22f
                 run { val rs = t.notes.minOf { it.start }; val re = t.notes.maxOf { it.start + it.length }; val bar = proj.samplesPerBar

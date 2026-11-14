@@ -14,9 +14,52 @@ fun newId(): String = UUID.randomUUID().toString().substring(0, 8)
  * so playback bypasses the rig for them and the effects are never applied twice.
  */
 class Clip(val id: String = newId(), var audioId: String, var start: Long, var offset: Long = 0, var length: Long, var gainDb: Float = 0f, var rate: Float = 1f, var name: String = "Clip", var takeId: String? = null,
-           var printed: Boolean = false) {
+           var printed: Boolean = false,
+           /** Optional fades in timeline frames (0 = only the built-in 2 ms click guard). Non-destructive: applied at mix time. */
+           var fadeIn: Long = 0, var fadeOut: Long = 0) {
     val end get() = start + (length / rate).toLong()
-    fun copy(id: String = this.id) = Clip(id, audioId, start, offset, length, gainDb, rate, name, takeId, printed)
+    val duration get() = end - start
+    fun copy(id: String = this.id) = Clip(id, audioId, start, offset, length, gainDb, rate, name, takeId, printed, fadeIn, fadeOut)
+}
+
+/** Non-destructive clip trimming: only the window (start/offset/length) and fades change; pooled audio is never rewritten. */
+object ClipEdit {
+    /** Shortest clip a trim may leave (10 ms). */
+    const val MIN_LEN = ENGINE_SR / 100L
+    /** Moves the left edge to timeline [newStart]: start, offset and length change together so the audio stays in place. */
+    fun trimLeft(c: Clip, newStart: Long) {
+        var d = newStart - c.start                                     // timeline frames (+ = shorten)
+        val minD = -(c.offset / c.rate).toLong()                       // cannot reveal audio before the source start
+        val maxD = ((c.length - MIN_LEN) / c.rate).toLong()            // keep at least MIN_LEN
+        d = d.coerceIn(minD, maxD).coerceAtLeast(-c.start)             // and never before 0 on the timeline
+        val src = (d * c.rate).toLong()
+        c.start += d; c.offset = (c.offset + src).coerceAtLeast(0); c.length -= src; clampFades(c)
+    }
+    /** Moves the right edge to timeline [newEnd], limited by the pooled audio length [srcLen]. */
+    fun trimRight(c: Clip, newEnd: Long, srcLen: Long) {
+        val want = ((newEnd - c.start) * c.rate).toLong()
+        c.length = want.coerceIn(MIN_LEN, (srcLen - c.offset).coerceAtLeast(MIN_LEN)); clampFades(c)
+    }
+    fun clampFades(c: Clip) { val d = c.duration; c.fadeIn = c.fadeIn.coerceIn(0, d); c.fadeOut = c.fadeOut.coerceIn(0, d - c.fadeIn) }
+    /** Source-frame window of non-silent audio inside the clip, or null if all silent. [thresholdDb] dBFS, [padFrames] kept around the sound. */
+    fun soundBounds(data: ShortArray, c: Clip, thresholdDb: Float = -45f, padFrames: Long = ENGINE_SR / 100L): LongRange? {
+        val thr = (32768.0 * Math.pow(10.0, thresholdDb / 20.0)).toInt()
+        val from = c.offset.coerceIn(0, data.size.toLong()).toInt(); val to = (c.offset + c.length).coerceIn(0, data.size.toLong()).toInt()
+        var first = -1; var last = -1
+        for (i in from until to) if (kotlin.math.abs(data[i].toInt()) >= thr) { first = i; break }
+        if (first < 0) return null
+        for (i in to - 1 downTo from) if (kotlin.math.abs(data[i].toInt()) >= thr) { last = i; break }
+        return (first - padFrames).coerceAtLeast(from.toLong())..(last + padFrames).coerceAtMost(to.toLong() - 1)
+    }
+    /** Trims leading and trailing silence (non-destructive). Returns false if the clip is all silence or already tight. */
+    fun silenceTrim(c: Clip, data: ShortArray, thresholdDb: Float = -45f): Boolean {
+        val b = soundBounds(data, c, thresholdDb) ?: return false
+        val oldS = c.start; val oldL = c.length
+        val newStartTl = c.start + ((b.first - c.offset) / c.rate).toLong()
+        val newEndTl = c.start + ((b.last + 1 - c.offset) / c.rate).toLong()
+        trimRight(c, newEndTl, data.size.toLong()); trimLeft(c, newStartTl)
+        return c.start != oldS || c.length != oldL
+    }
 }
 
 data class MidiNote(val pitch: Int, val start: Long, val length: Long, val velocity: Int)
@@ -95,7 +138,7 @@ object ProjectJson {
             put("id", t.id); put("name", t.name); put("family", t.family.name); put("inst", t.instrumentId); put("color", t.color); put("vol", t.volumeDb.toDouble()); put("pan", t.pan.toDouble())
             put("mute", t.mute); put("solo", t.solo); put("arm", t.recArm); put("mon", t.inputMonitor); put("input", t.inputSource); put("kit", t.kitId ?: ""); put("tuning", t.tuning ?: "")
             put("voice", t.voiceStyle); put("autoOn", t.automationOn); put("useMic", t.useMic); put("print", t.printTone); put("lyrics", JSONArray(t.lyrics)); put("playlist", JSONArray(t.playlist)); put("rig", rig(t.rig))
-            put("clips", JSONArray().apply { t.clips.forEach { c -> put(JSONObject().put("id", c.id).put("a", c.audioId).put("s", c.start).put("o", c.offset).put("l", c.length).put("g", c.gainDb.toDouble()).put("r", c.rate.toDouble()).put("n", c.name).put("take", c.takeId ?: "").put("pr", c.printed)) } })
+            put("clips", JSONArray().apply { t.clips.forEach { c -> put(JSONObject().put("id", c.id).put("a", c.audioId).put("s", c.start).put("o", c.offset).put("l", c.length).put("g", c.gainDb.toDouble()).put("r", c.rate.toDouble()).put("n", c.name).put("take", c.takeId ?: "").put("pr", c.printed).put("fi", c.fadeIn).put("fo", c.fadeOut)) } })
             put("notes", JSONArray().apply { t.notes.forEach { n -> put(JSONArray().put(n.pitch).put(n.start).put(n.length).put(n.velocity)) } })
             put("auto", JSONArray().apply { t.automation.forEach { a -> put(JSONArray().put(a.at).put(a.db.toDouble())) } })
         }) } })
@@ -117,7 +160,7 @@ object ProjectJson {
             tr.rig = t.optJSONObject("rig")?.let { rig(it) } ?: RigPresets.defaultFor(tr.family); tr.kitId = t.optString("kit").ifBlank { null }; tr.tuning = t.optString("tuning").ifBlank { null }; tr.voiceStyle = t.optString("voice", tr.voiceStyle); tr.automationOn = t.optBoolean("autoOn"); tr.useMic = t.optBoolean("useMic"); tr.printTone = t.optBoolean("print", true)
             t.optJSONArray("lyrics")?.let { a -> for (k in 0 until a.length()) tr.lyrics.add(a.getString(k)) }
             t.optJSONArray("playlist")?.let { a -> for (k in 0 until a.length()) tr.playlist.add(a.getString(k)) }
-            t.optJSONArray("clips")?.let { a -> for (k in 0 until a.length()) { val c = a.getJSONObject(k); tr.clips.add(Clip(c.getString("id"), c.getString("a"), c.getLong("s"), c.optLong("o"), c.getLong("l"), c.optDouble("g", 0.0).toFloat(), c.optDouble("r", 1.0).toFloat(), c.optString("n", "Clip"), c.optString("take").ifBlank { null }, c.optBoolean("pr"))) } }
+            t.optJSONArray("clips")?.let { a -> for (k in 0 until a.length()) { val c = a.getJSONObject(k); tr.clips.add(Clip(c.getString("id"), c.getString("a"), c.getLong("s"), c.optLong("o"), c.getLong("l"), c.optDouble("g", 0.0).toFloat(), c.optDouble("r", 1.0).toFloat(), c.optString("n", "Clip"), c.optString("take").ifBlank { null }, c.optBoolean("pr"), c.optLong("fi"), c.optLong("fo"))) } }
             t.optJSONArray("notes")?.let { a -> for (k in 0 until a.length()) { val n = a.getJSONArray(k); tr.notes.add(MidiNote(n.getInt(0), n.getLong(1), n.getLong(2), n.getInt(3))) } }
             t.optJSONArray("auto")?.let { a -> for (k in 0 until a.length()) { val n = a.getJSONArray(k); tr.automation.add(AutoPoint(n.getLong(0), n.getDouble(1).toFloat())) } }
             p.tracks.add(tr) }

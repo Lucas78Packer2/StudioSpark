@@ -247,6 +247,12 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
     fun duplicateClip(t: Track, c: Clip) = setTrack(t.id) { clips.add(c.copy(newId()).also { it.start = project.snap(c.end, project.samplesPerBar) }) }
     fun deleteClip(t: Track, c: Clip) { setTrack(t.id) { clips.remove(c) }; selectedClipId = null }
     fun trimClip(t: Track, c: Clip, deltaBars: Int) = setTrack(t.id) { val src = pool.get(c.audioId)?.size?.toLong() ?: c.length; val nl = (c.length + deltaBars * project.samplesPerBar * c.rate).toLong().coerceIn(project.samplesPerBeat / 2, src - c.offset); c.length = nl }
+    /** Drag-trim a clip edge to a timeline position (snapped to the beat when [snap]). Left trim moves start+offset+length together. */
+    fun trimClipEdge(t: Track, c: Clip, left: Boolean, at: Long, snap: Boolean) = setTrack(t.id, "trim${c.id}") { val pos = (if (snap) project.snap(at, project.samplesPerBeat / 4) else at).coerceAtLeast(0)
+        if (left) ClipEdit.trimLeft(c, pos) else ClipEdit.trimRight(c, pos, pool.get(c.audioId)?.size?.toLong() ?: (c.offset + c.length)) }
+    fun silenceTrimClip(t: Track, c: Clip) { val d = pool.get(c.audioId) ?: return; var changed = false
+        setTrack(t.id) { changed = ClipEdit.silenceTrim(c, d) }; message = if (changed) "Trimmed silence from ${c.name} (original audio kept)" else "No leading or trailing silence to trim" }
+    fun setClipFade(t: Track, c: Clip, fadeIn: Long? = null, fadeOut: Long? = null) = setTrack(t.id) { fadeIn?.let { c.fadeIn = it }; fadeOut?.let { c.fadeOut = it }; ClipEdit.clampFades(c) }
     fun stretchClip(t: Track, c: Clip, factor: Float) = setTrack(t.id) { c.rate = (c.rate / factor).coerceIn(0.25f, 4f) }
     fun splitClip(t: Track, c: Clip, at: Long) = setTrack(t.id) { if (at <= c.start || at >= c.end) return@setTrack; val cut = ((at - c.start) * c.rate).toLong(); clips.add(c.copy(newId()).also { it.start = at; it.offset = c.offset + cut; it.length = c.length - cut }); c.length = cut }
     /** Polish (first pass): normalise the clip to −1 dBFS peak and apply 5 ms edge fades in a new audio copy (original kept). */

@@ -105,4 +105,18 @@ class MicSourceTests {
         compose.runOnIdle { v.addTrack(InstrumentLibrary.stock.first { it.id == "vox_mic" }) }
         val vs = v.mixer.snap!!.tracks.first { it.id == v.selectedTrack()!!.id }; assertTrue(vs.micInput); assertFalse(vs.printTone)
     }
+
+    /** Milestone 3: clip fades are honoured at mix time (non-destructive). */
+    @Test fun clipFadeInIsAppliedInMix() {
+        val m = mixer(); val p = Project(); val t = Track(name = "A", family = Family.AUDIO, instrumentId = "vox_mic", color = 0); p.tracks += t
+        m.pool.put("dc", ShortArray(ENGINE_SR) { 16384 }, persist = false)
+        val c = Clip(audioId = "dc", start = 0, length = ENGINE_SR.toLong(), fadeIn = 4800)
+        m.snap = MixSnap(p, listOf(TrackSnap(t.id, t.family, "mic", null, arrayOf(c), emptyArray(), CharArray(0), 1f, 0f, false, false, false, false, true, null, emptyArray(), false, 0.6f, 0)))
+        m.session.metronome = false; m.session.play()
+        val n = 480; val out = FloatArray(2 * n); val input = FloatArray(n); val first = FloatArray(n * 12)
+        for (b in 0 until 12) { m.render(out, input, n); for (i in 0 until n) first[b * n + i] = out[2 * i] }
+        assertTrue("start of fade is quiet", abs(first[200]) < 0.05f)
+        assertEquals("mid fade ~half", 0.25f, first[2400], 0.03f)
+        assertEquals("after fade full level", 0.5f, first[5200], 0.03f)
+    }
 }

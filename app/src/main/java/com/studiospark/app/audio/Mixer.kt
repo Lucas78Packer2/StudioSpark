@@ -227,6 +227,8 @@ class Mixer(val bank: SampleBank, val pool: AudioPool) {
                 val srcPos = c.offset + (tl - c.start) * c.rate.toDouble(); val ip = srcPos.toInt(); if (ip + 1 >= data.size || ip < 0) continue
                 val fr = (srcPos - ip).toFloat(); var x = (data[ip] + (data[ip + 1] - data[ip]) * fr) / 32768f
                 val edge = min(tl - c.start, c.end - tl); if (edge < 96) x *= edge / 96f
+                if (c.fadeIn > 0 && tl - c.start < c.fadeIn) x *= (tl - c.start).toFloat() / c.fadeIn
+                if (c.fadeOut > 0 && c.end - tl < c.fadeOut) x *= (c.end - tl).toFloat() / c.fadeOut
                 buf[(tl - pos).toInt()] += x * g
             }
         }
