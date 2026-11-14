@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,21 +33,44 @@ import kotlin.math.*
 /** Studio = Pro Tools-style Edit window (pinned, always visible) + Mix window toggle + scrollable stack below (master board, selected track, rig, playable instrument). */
 @Composable fun StudioScreen(vm: StudioVM, landscape: Boolean) {
     val p = LocalPalette.current
-    val cfgH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
-    Column(Modifier.fillMaxSize()) {
-        EditToolbar(vm)
-        val editH = if (landscape) (cfgH * 0.48f).dp else (cfgH * 0.36f).dp.coerceIn(220.dp, 420.dp)
-        Box(Modifier.fillMaxWidth().height(editH)) { if (vm.mixWindow) MixWindow(vm) else EditWindow(vm) }
-        Divider(color = p.inset, thickness = 2.dp)
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (!vm.chromeHidden) MasterBoard(vm)
-            vm.selectedTrack()?.let { TrackDetail(vm, it) } ?: if (vm.project.tracks.isEmpty())
-                EmptyState("Basic studio — nothing loaded yet", "Add a guitar, bass, drum kit, keys, a mic track, or amps and pedals when you need them. Your saved kits, guitars and basses are in the list too.",
-                    action = { PrimaryButton("Add instrument or gear", icon = Icons.Default.Add) { vm.galleryOpen = true } })
-            else EmptyState("No track selected", "Tap a track header to select it.")
-            Spacer(Modifier.height(80.dp))
+    // Scroll positions are hoisted above the orientation branch (and saveable), so rotating never loses them or leaves a dead scroller.
+    val detailScroll = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    val laneScroll = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    val detail: @Composable ColumnScope.() -> Unit = {
+        if (!vm.chromeHidden) MasterBoard(vm)
+        vm.selectedTrack()?.let { TrackDetail(vm, it) } ?: if (vm.project.tracks.isEmpty())
+            EmptyState("Basic studio — nothing loaded yet", "Add a guitar, bass, drum kit, keys, a mic track, or amps and pedals when you need them. Your saved kits, guitars and basses are in the list too.",
+                action = { PrimaryButton("Add instrument or gear", icon = Icons.Default.Add) { vm.galleryOpen = true } })
+        else EmptyState("No track selected", "Tap a track header to select it.")
+        Spacer(Modifier.height(80.dp))
+    }
+    if (landscape) {
+        // Landscape: the edit window takes the full remaining height on the left; the track detail scrolls on the right.
+        Row(Modifier.fillMaxSize()) {
+            Column(Modifier.weight(0.6f).fillMaxHeight()) {
+                EditToolbar(vm)
+                Box(Modifier.fillMaxWidth().weight(1f)) { if (vm.mixWindow) MixWindow(vm) else EditWindow(vm, laneScroll) }
+            }
+            Box(Modifier.width(2.dp).fillMaxHeight().background(p.inset))
+            Column(Modifier.weight(0.4f).fillMaxHeight().verticalScroll(detailScroll).padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = detail)
+        }
+    } else BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Portrait: size the edit window from the space actually left under the app chrome, never from the screen height.
+        val editH = StudioLayout.editHeight(maxHeight)
+        Column(Modifier.fillMaxSize()) {
+            EditToolbar(vm)
+            Box(Modifier.fillMaxWidth().height(editH)) { if (vm.mixWindow) MixWindow(vm) else EditWindow(vm, laneScroll) }
+            Divider(color = p.inset, thickness = 2.dp)
+            Column(Modifier.weight(1f).verticalScroll(detailScroll).padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = detail)
         }
     }
+}
+
+/** Layout maths kept pure so it is unit-testable. */
+object StudioLayout {
+    val TOOLBAR = 45.dp
+    /** Edit window height for [avail] (space under the app chrome, toolbar included): ~45%, at least 150 dp, and always leaving 120 dp for the detail panel. */
+    fun editHeight(avail: Dp): Dp { val usable = avail - TOOLBAR; val want = (usable * 0.5f).coerceIn(150.dp, 420.dp); return minOf(want, (usable - 120.dp).coerceAtLeast(96.dp)) }
 }
 
 @Composable private fun EditToolbar(vm: StudioVM) {
@@ -83,12 +107,12 @@ import kotlin.math.*
 private val HEADER_W = 172.dp
 private val LANE_H = 68.dp
 
-@Composable private fun EditWindow(vm: StudioVM) {
+@Composable private fun EditWindow(vm: StudioVM, vScroll: ScrollState) {
     val p = LocalPalette.current; val proj = vm.project; @Suppress("UNUSED_VARIABLE") val r = vm.rev
     val density = LocalDensity.current
     val pxPerBeat = with(density) { 56.dp.toPx() } * vm.zoom
-    var scrollX by remember { mutableFloatStateOf(0f) }
-    val vScroll = rememberScrollState()
+    // horizontal timeline position lives in the VM so it survives rotation and layout swaps
+    var scrollX by vm::timelineScrollX
     val spb = proj.samplesPerBeat.toFloat()
     // follow playhead
     val playX = vm.position / spb * pxPerBeat
@@ -167,9 +191,10 @@ private fun Modifier.onWidth(f: (Float) -> Unit) = this.then(Modifier.onSizeChan
     Canvas(Modifier.fillMaxSize().semantics { contentDescription = "Edit window lanes" }
         .pointerInput(pxPerBeat, proj) { detectTapGestures(onTap = { o -> hit(o)?.let { (t, c) -> vm.selectedTrackId = t.id; vm.selectedClipId = c?.id } },
             onDoubleTap = { o -> vm.locate(((o.x + sx) / pxPerBeat * spb).toLong()) }) }
-        .pointerInput(pxPerBeat, proj) { detectDragGestures(onDragStart = { o -> val h = hit(o); if (h?.second != null) { dragClip = h.first to h.second!!; vm.selectedTrackId = h.first.id; vm.selectedClipId = h.second!!.id; dragDx = 0f } else dragClip = null },
-            onDragEnd = { dragClip?.let { (t, c) -> vm.moveClip(t, c, c.start + (dragDx / pxPerBeat * spb).toLong(), true) }; dragClip = null; dragDx = 0f }, onDragCancel = { dragClip = null }) { ch, d ->
-            ch.consume(); if (dragClip != null) dragDx += d.x else setScroll((sx - d.x).coerceAtLeast(0f)) } }) {
+        // Horizontal-only: vertical swipes fall through to the lane list's vertical scroll (portrait and landscape).
+        .pointerInput(pxPerBeat, proj) { detectHorizontalDragGestures(onDragStart = { o -> val h = hit(o); if (h?.second != null) { dragClip = h.first to h.second!!; vm.selectedTrackId = h.first.id; vm.selectedClipId = h.second!!.id; dragDx = 0f } else dragClip = null },
+            onDragEnd = { dragClip?.let { (t, c) -> vm.moveClip(t, c, c.start + (dragDx / pxPerBeat * spb).toLong(), true) }; dragClip = null; dragDx = 0f }, onDragCancel = { dragClip = null; dragDx = 0f }) { ch, dx ->
+            ch.consume(); if (dragClip != null) dragDx += dx else setScroll((sx - dx).coerceAtLeast(0f)) } }) {
         val beatsPerBar = (proj.sigNum * 4 / proj.sigDen).coerceAtLeast(1)
         val firstBeat = (scrollX / pxPerBeat).toInt(); val lastBeat = ((scrollX + size.width) / pxPerBeat).toInt() + 1
         for (b in firstBeat..lastBeat) { val x = b * pxPerBeat - scrollX; drawLine(if (b % beatsPerBar == 0) p.gridBar else p.gridBeat, Offset(x, 0f), Offset(x, size.height), 1f) }

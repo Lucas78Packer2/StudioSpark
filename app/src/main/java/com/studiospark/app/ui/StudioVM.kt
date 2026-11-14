@@ -87,6 +87,8 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
     var workbench by mutableStateOf<String?>(null) // "guitar" | "drums"
     var upload by mutableStateOf<UploadFlow?>(null)
     val stems = StemsState()
+    /** Timeline horizontal scroll (px), hoisted here so rotation/layout changes keep the view. */
+    var timelineScrollX by mutableFloatStateOf(0f)
     var zoom by mutableFloatStateOf(0.5f) // timeline px-per-beat scale; 0.5 shows ~4 bars on a phone in portrait
 
     // birthday banner — user-set only, never assumed

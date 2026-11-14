@@ -32,10 +32,11 @@ import kotlinx.coroutines.delay
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     Box(Modifier.fillMaxSize().background(p.window)) {
         Column(Modifier.fillMaxSize()) {
-            ProjectHeader(vm, landscape)
+            // Landscape: project actions fold into the single-row transport and the tabs get shorter, leaving height for content.
+            if (!landscape) ProjectHeader(vm, landscape)
             TransportBar(vm, landscape)
             if (vm.bannerVisible()) BirthdayBanner(vm)
-            ScreenTabs(vm)
+            ScreenTabs(vm, landscape)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (vm.screen) {
                     Screen.STUDIO -> StudioScreen(vm, landscape)
@@ -90,6 +91,7 @@ import kotlinx.coroutines.delay
 @Composable fun TransportBar(vm: StudioVM, landscape: Boolean) {
     val p = LocalPalette.current; val ses = vm.mixer.session
     val recording = vm.transport == TransportState.RECORDING || vm.transport == TransportState.COUNT_IN
+    if (landscape) { CompactTransport(vm); return }
     Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(p.panel, p.window))).padding(horizontal = 10.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             TransportKey(Icons.Default.SkipPrevious, "Return to zero") { vm.rtz() }
@@ -122,6 +124,33 @@ import kotlinx.coroutines.delay
     Divider(color = p.inset)
 }
 
+/** Landscape: one scrollable row with transport, counter, session controls and the project actions (undo, redo, hide, settings). */
+@Composable private fun CompactTransport(vm: StudioVM) {
+    val p = LocalPalette.current; val ses = vm.mixer.session
+    val recording = vm.transport == TransportState.RECORDING || vm.transport == TransportState.COUNT_IN
+    Row(Modifier.fillMaxWidth().background(p.panel).horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        TransportKey(Icons.Default.SkipPrevious, "Return to zero") { vm.rtz() }
+        TransportKey(Icons.Default.Stop, "Stop", active = vm.transport == TransportState.STOPPED) { vm.stop() }
+        TransportKey(Icons.Default.PlayArrow, "Play", active = vm.transport == TransportState.PLAYING, activeColor = p.play) { vm.play() }
+        TransportKey(Icons.Default.FiberManualRecord, if (recording) "Stop recording" else "Record", active = recording, activeColor = p.rec, iconTint = p.rec) { vm.record() }
+        Column(Modifier.clip(RoundedCornerShape(4.dp)).background(p.inset).padding(horizontal = 8.dp, vertical = 2.dp).width(132.dp)) {
+            Text(vm.project.barsBeats(vm.position).trim(), style = Type.counter.copy(fontSize = 15.sp), color = if (recording) p.rec else p.text, maxLines = 1)
+            Text(if (vm.transport == TransportState.RECORDING) "● REC ${vm.recElapsed / 60000}:${String.format("%02d", vm.recElapsed / 1000 % 60)}" else String.format("%.0f BPM · %d/%d", vm.project.tempo, vm.project.sigNum, vm.project.sigDen), style = Type.mono, color = if (recording) p.rec else p.textFaint, maxLines = 1) }
+        if (!vm.chromeHidden) {
+            ToolButton("Loop", icon = Icons.Default.Repeat, active = ses.loopPlayback) { vm.setLoop(!ses.loopPlayback) }
+            Dropdown("", "Rec: ${ses.mode.label}", RecordMode.values().toList(), { it.label }) { vm.setMode(it) }
+            ToolButton("Click", icon = Icons.Outlined.Timer, active = ses.metronome) { vm.setMetronome(!ses.metronome) }
+            TempoControl(vm)
+            Dropdown("", "${vm.project.sigNum}/${vm.project.sigDen}", listOf(4 to 4, 3 to 4, 6 to 8, 5 to 4, 7 to 8, 12 to 8, 2 to 4), { "${it.first}/${it.second}" }) { vm.setSig(it.first, it.second) }
+        }
+        IconBtn(Icons.Default.Undo, "Undo", vm.canUndo) { vm.undo() }
+        IconBtn(Icons.Default.Redo, "Redo", vm.canRedo) { vm.redo() }
+        IconBtn(if (vm.chromeHidden) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff, if (vm.chromeHidden) "Show controls" else "Hide controls") { vm.setHidden(!vm.chromeHidden) }
+        IconBtn(Icons.Outlined.Settings, "Settings") { vm.settingsOpen = true }
+    }
+    Divider(color = p.inset)
+}
+
 @Composable private fun TempoControl(vm: StudioVM) {
     val p = LocalPalette.current
     Row(Modifier.height(32.dp).clip(RoundedCornerShape(4.dp)).background(p.raised).border(1.dp, p.line, RoundedCornerShape(4.dp)), verticalAlignment = Alignment.CenterVertically) {
@@ -148,13 +177,13 @@ import kotlinx.coroutines.delay
         Icon(icon, desc, tint = iconTint ?: if (active) ac else p.text, modifier = Modifier.size(22.dp)) }
 }
 
-@Composable private fun ScreenTabs(vm: StudioVM) {
+@Composable private fun ScreenTabs(vm: StudioVM, landscape: Boolean = false) {
     val p = LocalPalette.current
     Row(Modifier.fillMaxWidth().background(p.panel).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(Modifier.weight(1f).horizontalScroll(rememberScrollState())) { Screen.values().forEach { s -> val sel = vm.screen == s
-            Column(Modifier.clickable { vm.screen = s; if (s == Screen.JAM) vm.ensureRoom() }.semantics { contentDescription = "${s.label} tab" }.padding(horizontal = 12.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.clickable { vm.screen = s; if (s == Screen.JAM) vm.ensureRoom() }.semantics { contentDescription = "${s.label} tab" }.padding(horizontal = 12.dp, vertical = if (landscape) 5.dp else 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(s.label, style = Type.bodyStrong, color = if (sel) p.text else p.textFaint, maxLines = 1)
-                Spacer(Modifier.height(6.dp)); Box(Modifier.height(2.dp).width(28.dp).background(if (sel) p.accent else Color.Transparent))
+                Spacer(Modifier.height(if (landscape) 3.dp else 6.dp)); Box(Modifier.height(2.dp).width(28.dp).background(if (sel) p.accent else Color.Transparent))
             } } }
         Spacer(Modifier.width(6.dp))
         ToolButton("Instruments", icon = Icons.Default.Add) { vm.galleryOpen = true }
