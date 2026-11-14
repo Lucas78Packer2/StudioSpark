@@ -156,7 +156,7 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
             val syl = t.lyrics.filter { !it.startsWith("[") }.joinToString(" ").lowercase().split(Regex("[^a-z]+")).filter { it.isNotBlank() }.flatMap { w -> Regex("[aeiouy]+").findAll(w).map { m -> m.value.first().let { c -> if (c == 'y') 'i' else c } }.toList().ifEmpty { listOf('a') } }
             TrackSnap(t.id, t.family, voice, kit, t.clips.map { it.copy() }.toTypedArray(), notes, CharArray(notes.size) { syl.getOrElse(it % maxOf(1, syl.size)) { 'a' } },
                 Shapers.dbToLin(t.volumeDb), t.pan, t.mute, t.solo, t.inputMonitor, t.recArm, micInputFor(t, inst),
-                proc, t.automation.sortedBy { it.at }.toTypedArray(), t.automationOn, inst.brightness, when { t.voiceStyle.contains("Bright") -> 1; t.voiceStyle.contains("Breathy") -> 2; else -> 0 }, procR, paused = t.paused,
+                proc, t.automation.sortedBy { it.at }.toTypedArray(), t.automationOn, inst.brightness, when { t.voiceStyle.contains("Bright") -> 1; t.voiceStyle.contains("Breathy") -> 2; else -> 0 }, procR, paused = t.paused || (jamBandOn && t.jamRole == null),
                 printTone = t.printTone && micInputFor(t, inst) && !(inst.source == SoundSource.MIC || t.family == Family.AUDIO || t.family == Family.VOCAL))
         }
         rigs.retain(p.tracks.map { it.id }.toSet())
@@ -187,6 +187,7 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
             val active = st != TransportState.STOPPED || mixer.previewAudio != null || engine.inputActive || roomRecording || mixer.room().voices.isNotEmpty() || mixer.channels.values.any { it.voices.isNotEmpty() }
             if (transport != st) { transport = st; if (st == TransportState.RECORDING) recStart = System.currentTimeMillis() }
             if (s.position != lastPos) { position = s.position; lastPos = s.position }
+            jamTick(st)
             if (active || meters.values.any { it > 0.001f }) {
                 meters = HashMap(mixer.trackPeaks); masterL = mixer.mixPeakL; masterR = mixer.mixPeakR; inputLevel = engine.inputPeak; cpu = engine.cpuLoad
                 if (!active) { mixer.trackPeaks.keys.forEach { mixer.trackPeaks[it] = mixer.trackPeaks[it]!! * 0.5f }; mixer.mixPeakL *= 0.5f; mixer.mixPeakR *= 0.5f }
@@ -470,6 +471,70 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
         patternPick = pick
         patternPromptInfo = "${r.genre.name} · ${r.part.label}${r.tempo?.let { " · ${it.toInt()} BPM" } ?: ""}${r.key?.let { " · $it" } ?: ""}"
         return pick }
+
+    // ------------------------------------------------------------------ jam room backing band (reuses scheduled MIDI + loop playback)
+    var jamBandOn by mutableStateOf(false); private set
+    var jamMode by mutableStateOf(JamBand.Mode.FULL); private set
+    var jamLoop by mutableStateOf(true); private set
+    var jamLoaded by mutableStateOf<String?>(null); private set
+    private var jamSaved: Triple<Long, Long, Boolean>? = null; private var jamSeenRolling = false
+    private data class JamPending(val trackId: String, val bar: Int, val notes: List<MidiNote>)
+    private val jamPending = ArrayList<JamPending>()
+    fun jamTrack(role: PatternPart): Track = project.tracks.firstOrNull { it.jamRole == role.name } ?: run {
+        val sel = selectedTrackId
+        val inst = when (role) { PatternPart.DRUMS -> InstrumentLibrary.stock.firstOrNull { it.id == "kit_studio_maple" } ?: InstrumentLibrary.stock.first { it.surface == Surface.DRUM_KIT }
+            else -> InstrumentLibrary.stock.first { it.family == fam(role == PatternPart.BASS) && it.surface == Surface.STRINGS } }
+        addTrack(inst, "Jam ${role.label}"); val t = selectedTrack()!!; selectedTrackId = sel ?: t.id
+        edit(undoable = false) { t.jamRole = role.name; t.paused = !jamBandOn; t.mute = jamMode.muted(role) }; t }
+    private val jamLen get() = project.loopEnd.takeIf { jamBandOn && it > project.loopStart } ?: (4 * project.samplesPerBar)
+    /** Loads a backing set (or one part) onto the jam tracks; while the band is rolling the change lands on the next bar. */
+    fun jamLoad(pick: PatternPick) {
+        val g = patternLibrary().getOrNull(pick.genre) ?: return
+        val parts = if (pick.part == PatternPart.BACKING) JamBand.ROLES else listOf(pick.part)
+        val bar = project.samplesPerBar; val rolling = jamBandOn && transport != TransportState.STOPPED
+        val jobs = parts.map { part -> val t = jamTrack(part); t to patternNotes(g, part, pick.index, pick.seed + part.ordinal, pick.vary, if (part == PatternPart.DRUMS) kitPieces(t) else null) }
+        val newLen = parts.maxOf { PatternGen.bars(g, it, pick.index) } * bar
+        jamPending.removeAll { p -> jobs.any { it.first.id == p.trackId } }
+        edit(undoable = false) { for ((t, notes) in jobs) { val tr = track(t.id) ?: continue
+            if (rolling) { val sw = JamBand.swapAtNextBar(tr.notes.toList(), notes, position, bar, jamLen); tr.notes.clear(); tr.notes.addAll(sw.now)
+                if (sw.pendingBar != null) jamPending += JamPending(tr.id, sw.pendingBar, sw.pending) }
+            else { tr.notes.clear(); tr.notes.addAll(notes) } }
+            if (jamBandOn) { loopStart = 0; loopEnd = maxOf(newLen, if (pick.part == PatternPart.BACKING) 0 else loopEnd) } }
+        wantTracks(jobs.map { it.first.id })
+        jamLoaded = "${g.name} · ${patternName(g, pick.part, pick.index)}"
+        message = if (rolling) "Backing swaps at the next bar: $jamLoaded" else "Backing loaded: $jamLoaded"
+    }
+    fun chooseJamMode(m: JamBand.Mode) { jamMode = m; edit(undoable = false) { tracks.filter { it.jamRole != null }.forEach { t -> t.mute = m.muted(PatternPart.valueOf(t.jamRole!!)) } } }
+    fun chooseJamLoop(on: Boolean) { jamLoop = on; if (jamBandOn) mixer.session.loopPlayback = on }
+    /** Starts the backing band from bar 1; other project tracks stay silent while it plays. Live playing stays on the jam bus. */
+    fun jamPlay() {
+        if (jamBandOn) return
+        if (project.tracks.none { it.jamRole != null && it.notes.isNotEmpty() }) jamLoad(patternPick.copy(part = PatternPart.BACKING))
+        val len = project.tracks.filter { it.jamRole != null }.maxOfOrNull { t -> t.notes.maxOfOrNull { it.start + it.length } ?: 0L }?.let { e -> ((e + project.samplesPerBar - 1) / project.samplesPerBar).coerceIn(1, 8) * project.samplesPerBar } ?: (4 * project.samplesPerBar)
+        jamSaved = Triple(project.loopStart, project.loopEnd, mixer.session.loopPlayback); jamSeenRolling = false; jamBandOn = true
+        edit(undoable = false) { loopStart = 0; loopEnd = len; tracks.filter { it.jamRole != null }.forEach { t -> t.paused = false; t.mute = jamMode.muted(PatternPart.valueOf(t.jamRole!!)) } }
+        mixer.session.loopPlayback = jamLoop
+        if (transport != TransportState.STOPPED) engine.stopTransport()
+        locate(0); wantTracks(project.tracks.filter { it.jamRole != null }.map { it.id }); engine.play()
+    }
+    fun jamStop() { if (!jamBandOn) return; engine.stopTransport(); endJamBand() }
+    private fun endJamBand() {
+        jamBandOn = false; flushJamPending(force = true)
+        val s = jamSaved; jamSaved = null
+        edit(undoable = false) { if (s != null) { loopStart = s.first; loopEnd = s.second }; tracks.filter { it.jamRole != null }.forEach { it.paused = true } }
+        mixer.session.loopPlayback = s?.third ?: false; rev++
+    }
+    private fun flushJamPending(force: Boolean) {
+        if (jamPending.isEmpty()) return
+        val bar = project.samplesPerBar; val cur = JamBand.barOf(position, bar, jamLen)
+        val due = jamPending.filter { force || it.bar != cur }; if (due.isEmpty()) return
+        jamPending.removeAll(due)
+        edit(undoable = false) { due.forEach { p -> track(p.trackId)?.let { tr -> val n = JamBand.applyPending(tr.notes.toList(), p.bar, p.notes, bar); tr.notes.clear(); tr.notes.addAll(n) } } }
+    }
+    private fun jamTick(st: TransportState) {
+        if (!jamBandOn) return
+        if (st != TransportState.STOPPED) { jamSeenRolling = true; flushJamPending(false) } else if (jamSeenRolling) endJamBand()
+    }
 
     // ------------------------------------------------------------------ export
     fun exportMix() { viewModelScope.launch { message = "Bouncing mix…"; val bytes = withContext(Dispatchers.Default) { renderMix() }

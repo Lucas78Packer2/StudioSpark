@@ -157,6 +157,7 @@ private const val WORLD_W = 1600f; private const val WORLD_H = 1000f
             ToolButton(if (vm.roomRecording) "Stop" else "Record jam", icon = if (vm.roomRecording) Icons.Default.Stop else Icons.Default.FiberManualRecord, active = vm.roomRecording, accent = p.rec) { if (vm.roomRecording) vm.stopRoomRecording() else vm.startRoomRecording() }
             if (vm.roomRecording) Text(String.format("%d:%02d", vm.recElapsed / 60000, vm.recElapsed / 1000 % 60), style = Type.mono, color = p.rec)
             ToolButton("Click", icon = Icons.Default.Timer, active = vm.metronomeFree) { vm.setFreeMetronome(!vm.metronomeFree) }
+            ToolButton(if (vm.jamBandOn) "Stop band" else "Play band", icon = if (vm.jamBandOn) Icons.Default.Stop else Icons.Default.PlayArrow, active = vm.jamBandOn) { if (vm.jamBandOn) vm.jamStop() else vm.jamPlay() }
             ToolButton("Add gear", icon = Icons.Default.Add) { addOpen = true }
             ToolButton(if (cableMode) "Tap source, then target" else "Patch cable", icon = Icons.Default.Cable, active = cableMode) { cableMode = !cableMode; cableFrom = null }
             ToolButton("Reset view", icon = Icons.Default.CenterFocusStrong) { vm.setCamera(0f, 0f, 1f) }
@@ -215,6 +216,7 @@ private const val WORLD_W = 1600f; private const val WORLD_H = 1000f
                 }
             } else if (item != null) Panel(Modifier.fillMaxWidth()) { SectionLabel(if (item.kind == "kit") "Drum kit" else proj.instrument(item.refId).name) { IconBtn(Icons.Outlined.Delete, "Remove from room") { vm.roomRemove(item.id); selected = null } }
                 Text("This is the room's active instrument. Play it below; it runs through every connected pedal, amp and cab.", style = Type.small, color = p.textDim) }
+            JamBandPanel(vm)
             Panel(Modifier.fillMaxWidth()) {
                 SectionLabel("Play · ${inst?.let { if (it.kind == "kit") DrumKits.byId(it.refId, proj.customKits)?.name ?: "Kit" else proj.instrument(it.refId).name } ?: "No instrument"}")
                 when {
@@ -230,6 +232,23 @@ private const val WORLD_W = 1600f; private const val WORLD_H = 1000f
         }
     }
     if (addOpen) RoomAddDialog(vm) { addOpen = false }
+}
+
+/** Backing band: pick genre/part/pattern, play or loop it, choose which parts sound. The band plays from jam tracks; you play live on the room bus. */
+@Composable private fun JamBandPanel(vm: StudioVM) {
+    val p = LocalPalette.current; var open by remember { mutableStateOf(false) }
+    Panel(Modifier.fillMaxWidth()) {
+        SectionLabel("Backing band") { Text(vm.jamLoaded ?: "Nothing loaded", style = Type.label, color = p.textFaint, maxLines = 1) }
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            ToolButton(if (vm.jamBandOn) "Stop" else "Play", icon = if (vm.jamBandOn) Icons.Default.Stop else Icons.Default.PlayArrow, active = vm.jamBandOn, modifier = Modifier.semantics { contentDescription = if (vm.jamBandOn) "Stop backing band" else "Play backing band" }) { if (vm.jamBandOn) vm.jamStop() else vm.jamPlay() }
+            ToolButton("Loop", icon = Icons.Default.Repeat, active = vm.jamLoop) { vm.chooseJamLoop(!vm.jamLoop) }
+            com.studiospark.app.core.JamBand.Mode.values().forEach { m -> ToolButton(m.label, active = vm.jamMode == m) { vm.chooseJamMode(m) } }
+            ToolButton(if (open) "Hide patterns" else "Patterns", icon = Icons.Default.AutoAwesome, active = open) { open = !open }
+        }
+        if (open) { Spacer(Modifier.height(8.dp))
+            PatternPicker(vm, if (vm.jamBandOn) "Swap at next bar" else "Load") { vm.jamLoad(it) } }
+        Text("Pattern changes land on the next bar. The band uses the Jam Drums/Bass/Guitar tracks (paused in the Studio until you unpause them); what you play here stays on the jam bus.", style = Type.label, color = p.textFaint)
+    }
 }
 
 @Composable private fun RoomAddDialog(vm: StudioVM, onDismiss: () -> Unit) {

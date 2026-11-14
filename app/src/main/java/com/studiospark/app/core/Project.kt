@@ -92,6 +92,8 @@ class Track(
     var printTone: Boolean = true,
     /** Per-track pause: the track follows the global transport but stays silent (clips and MIDI) while paused. */
     var paused: Boolean = false,
+    /** Jam-room backing band role (DRUMS/BASS/GUITAR) or null for normal tracks. */
+    var jamRole: String? = null,
 )
 
 class Project(
@@ -148,7 +150,7 @@ object ProjectJson {
         put("tracks", JSONArray().apply { p.tracks.forEach { t -> put(JSONObject().apply {
             put("id", t.id); put("name", t.name); put("family", t.family.name); put("inst", t.instrumentId); put("color", t.color); put("vol", t.volumeDb.toDouble()); put("pan", t.pan.toDouble())
             put("mute", t.mute); put("solo", t.solo); put("arm", t.recArm); put("mon", t.inputMonitor); put("input", t.inputSource); put("kit", t.kitId ?: ""); put("tuning", t.tuning ?: "")
-            put("voice", t.voiceStyle); put("autoOn", t.automationOn); put("useMic", t.useMic); put("print", t.printTone); put("paused", t.paused); put("lyrics", JSONArray(t.lyrics)); put("playlist", JSONArray(t.playlist)); put("rig", rig(t.rig))
+            put("voice", t.voiceStyle); put("autoOn", t.automationOn); put("useMic", t.useMic); put("print", t.printTone); put("paused", t.paused); t.jamRole?.let { put("jam", it) }; put("lyrics", JSONArray(t.lyrics)); put("playlist", JSONArray(t.playlist)); put("rig", rig(t.rig))
             put("clips", JSONArray().apply { t.clips.forEach { c -> put(JSONObject().put("id", c.id).put("a", c.audioId).put("s", c.start).put("o", c.offset).put("l", c.length).put("g", c.gainDb.toDouble()).put("r", c.rate.toDouble()).put("n", c.name).put("take", c.takeId ?: "").put("pr", c.printed).put("fi", c.fadeIn).put("fo", c.fadeOut)) } })
             put("notes", JSONArray().apply { t.notes.forEach { n -> put(JSONArray().put(n.pitch).put(n.start).put(n.length).put(n.velocity)) } })
             put("auto", JSONArray().apply { t.automation.forEach { a -> put(JSONArray().put(a.at).put(a.db.toDouble())) } })
@@ -168,7 +170,7 @@ object ProjectJson {
         val ta = o.optJSONArray("tracks") ?: JSONArray()
         for (i in 0 until ta.length()) { val t = ta.getJSONObject(i)
             val tr = Track(t.getString("id"), t.getString("name"), Family.valueOf(t.getString("family")), t.getString("inst"), t.getLong("color"), t.optDouble("vol", 0.0).toFloat(), t.optDouble("pan", 0.0).toFloat(), t.optBoolean("mute"), t.optBoolean("solo"), t.optBoolean("arm"), t.optBoolean("mon"), t.optString("input", "phone_mic"))
-            tr.rig = t.optJSONObject("rig")?.let { rig(it) } ?: RigPresets.defaultFor(tr.family); tr.kitId = t.optString("kit").ifBlank { null }; tr.tuning = t.optString("tuning").ifBlank { null }; tr.voiceStyle = t.optString("voice", tr.voiceStyle); tr.automationOn = t.optBoolean("autoOn"); tr.useMic = t.optBoolean("useMic"); tr.printTone = t.optBoolean("print", true); tr.paused = t.optBoolean("paused")
+            tr.rig = t.optJSONObject("rig")?.let { rig(it) } ?: RigPresets.defaultFor(tr.family); tr.kitId = t.optString("kit").ifBlank { null }; tr.tuning = t.optString("tuning").ifBlank { null }; tr.voiceStyle = t.optString("voice", tr.voiceStyle); tr.automationOn = t.optBoolean("autoOn"); tr.useMic = t.optBoolean("useMic"); tr.printTone = t.optBoolean("print", true); tr.paused = t.optBoolean("paused"); tr.jamRole = t.optString("jam").ifBlank { null }
             t.optJSONArray("lyrics")?.let { a -> for (k in 0 until a.length()) tr.lyrics.add(a.getString(k)) }
             t.optJSONArray("playlist")?.let { a -> for (k in 0 until a.length()) tr.playlist.add(a.getString(k)) }
             t.optJSONArray("clips")?.let { a -> for (k in 0 until a.length()) { val c = a.getJSONObject(k); tr.clips.add(Clip(c.getString("id"), c.getString("a"), c.getLong("s"), c.optLong("o"), c.getLong("l"), c.optDouble("g", 0.0).toFloat(), c.optDouble("r", 1.0).toFloat(), c.optString("n", "Clip"), c.optString("take").ifBlank { null }, c.optBoolean("pr"), c.optLong("fi"), c.optLong("fo"))) } }

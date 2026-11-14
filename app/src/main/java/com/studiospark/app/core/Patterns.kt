@@ -73,6 +73,28 @@ object PatternGen {
     fun bars(g: Genre, part: PatternPart, index: Int) = when (part) { PatternPart.BASS -> g.bass[index].bars; PatternPart.GUITAR -> g.guitar[index].bars; else -> g.drums[index].bars }
 }
 
+/** Jam-room backing band: which parts sound, and bar-accurate pattern swaps while the loop is rolling. */
+object JamBand {
+    enum class Mode(val label: String, val parts: Set<PatternPart>) {
+        DRUMS("Drums", setOf(PatternPart.DRUMS)), DRUMS_BASS("Drums+Bass", setOf(PatternPart.DRUMS, PatternPart.BASS)), FULL("Full band", setOf(PatternPart.DRUMS, PatternPart.BASS, PatternPart.GUITAR));
+        fun muted(part: PatternPart) = part !in parts }
+    val ROLES = listOf(PatternPart.DRUMS, PatternPart.BASS, PatternPart.GUITAR)
+    data class Swap(val now: List<MidiNote>, val pendingBar: Int?, val pending: List<MidiNote>)
+    /**
+     * Swap [old] for [new] starting at the next bar after [pos]: the bar currently playing keeps its old notes, every other bar gets
+     * the new pattern at once (it is ahead of the playhead), and the current bar's new notes are [pending] until the playhead leaves it.
+     */
+    fun swapAtNextBar(old: List<MidiNote>, new: List<MidiNote>, pos: Long, bar: Long, loopLen: Long): Swap {
+        if (bar <= 0 || loopLen <= 0) return Swap(new, null, emptyList())
+        val b = ((pos % loopLen) / bar).toInt(); val s = b * bar; val e = s + bar; fun inBar(n: MidiNote) = n.start >= s && n.start < e
+        return Swap((old.filter(::inBar) + new.filterNot(::inBar)).sortedBy { it.start }, b, new.filter(::inBar))
+    }
+    /** Applies a pending bar once the playhead is in another bar. */
+    fun applyPending(current: List<MidiNote>, pendingBar: Int, pending: List<MidiNote>, bar: Long) =
+        (current.filterNot { it.start >= pendingBar * bar && it.start < (pendingBar + 1) * bar } + pending).sortedBy { it.start }
+    fun barOf(pos: Long, bar: Long, loopLen: Long) = if (bar <= 0 || loopLen <= 0) 0 else ((pos % loopLen) / bar).toInt()
+}
+
 /** Current picker selection, shared by the Studio picker and the Jam room. */
 data class PatternPick(val genre: Int = 0, val part: PatternPart = PatternPart.DRUMS, val index: Int = 0, val seed: Int = 1, val vary: Boolean = true) {
     /** Shuffle within the genre: another pattern for the same part, and a fresh variation seed. */
