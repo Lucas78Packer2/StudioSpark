@@ -42,7 +42,10 @@ private val audioMimes = arrayOf("audio/*", "audio/midi", "audio/x-midi", "appli
     val p = LocalPalette.current; @Suppress("UNUSED_VARIABLE") val r = vm.rev
     val recording = vm.transport == TransportState.RECORDING || vm.transport == TransportState.COUNT_IN
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? -> uri?.let { vm.openUpload("import", null); vm.upload?.let { u -> vm.uploadFromUri(u, it) } } }
-    val micTrack = vm.project.tracks.firstOrNull { it.recArm && it.family in setOf(Family.VOCAL, Family.AUDIO) } ?: vm.project.tracks.firstOrNull { it.family == Family.VOCAL || it.family == Family.AUDIO }
+    // Record targets: vocal/audio mic tracks plus guitar and bass (which switch their Source to Mic when picked here)
+    val targets = vm.project.tracks.filter { it.family in setOf(Family.VOCAL, Family.AUDIO, Family.GUITAR, Family.BASS) && (it.family == Family.GUITAR || it.family == Family.BASS || vm.micInputFor(it)) }
+    var targetId by remember { mutableStateOf<String?>(null) }
+    val micTrack = targets.firstOrNull { it.id == targetId } ?: targets.firstOrNull { it.recArm && vm.micInputFor(it) } ?: targets.firstOrNull { it.family == Family.VOCAL || it.family == Family.AUDIO } ?: targets.firstOrNull { it.useMic }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Panel(Modifier.fillMaxWidth(), pad = 18.dp) {
             SectionLabel("Input")
@@ -50,6 +53,8 @@ private val audioMimes = arrayOf("audio/*", "audio/midi", "audio/x-midi", "appli
                 Dropdown("Source", vm.inputDevices.firstOrNull { it.id == vm.inputDeviceId }?.name ?: "Phone microphone", vm.inputDevices, { it.name + if (it.external) "  · interface" else "" }, Modifier.weight(1f)) { vm.pickInput(it.id) }
                 IconBtn(Icons.Default.Refresh, "Rescan inputs") { vm.refreshInputs() }
             }
+            if (targets.isNotEmpty()) { Spacer(Modifier.height(10.dp))
+                Dropdown("Record to", micTrack?.let { "${it.name} · ${if (it.family == Family.GUITAR || it.family == Family.BASS) (if (it.useMic) "Mic" else "Instrument → Mic") else "Mic"}" } ?: "New track", targets, { "${it.name} (${it.family.label})" }, Modifier.fillMaxWidth()) { targetId = it.id } }
             Spacer(Modifier.height(14.dp))
             Meter(vm.inputLevel, Modifier.fillMaxWidth().height(10.dp), vertical = false)
             Row(Modifier.fillMaxWidth().padding(top = 4.dp)) { listOf("−60", "−36", "−18", "−6", "0 dB").forEach { Text(it, style = Type.mono, color = p.textFaint, modifier = Modifier.weight(1f)) } }
@@ -58,10 +63,11 @@ private val audioMimes = arrayOf("audio/*", "audio/midi", "audio/x-midi", "appli
                 Column(Modifier.weight(1f)) {
                     Text(if (recording) "RECORDING" else "READY", style = Type.label, color = if (recording) p.rec else p.textDim)
                     val s = vm.recElapsed / 1000; Text(String.format("%02d:%02d.%d", s / 60, s % 60, (vm.recElapsed % 1000) / 100), style = Type.counter.copy(fontSize = 34.sp), color = p.text)
-                    Text(micTrack?.let { "Records to a private take for ${it.name}" } ?: "Records to a new private take", style = Type.small, color = p.textFaint)
+                    Text(micTrack?.let { "Records to a private take for ${it.name}${if (it.useMic && it.printTone) " · tone printed" else if (it.useMic) " · dry" else ""}" } ?: "Records to a new private take", style = Type.small, color = p.textFaint)
                 }
                 Box(Modifier.size(84.dp).shadow(8.dp, CircleShape).clip(CircleShape).background(Brush.radialGradient(listOf(p.raised, p.inset))).border(2.dp, if (recording) p.rec else p.line, CircleShape)
-                    .clickable { micTrack?.let { t -> if (!t.recArm) vm.setTrack(t.id) { recArm = true } }; vm.record() }.semantics { contentDescription = if (recording) "Stop recording" else "Record" }, contentAlignment = Alignment.Center) {
+                    .clickable { micTrack?.let { t -> if ((t.family == Family.GUITAR || t.family == Family.BASS) && !t.useMic && !recording) { vm.withMic { vm.setTrackSource(t, true); vm.setTrack(t.id) { recArm = true }; vm.record() }; return@clickable }
+                        if (!t.recArm) vm.setTrack(t.id) { recArm = true } }; vm.record() }.semantics { contentDescription = if (recording) "Stop recording" else "Record" }, contentAlignment = Alignment.Center) {
                     if (recording) Box(Modifier.size(26.dp).clip(RoundedCornerShape(4.dp)).background(p.text)) else Box(Modifier.size(34.dp).clip(CircleShape).background(p.rec)) }
             }
             Spacer(Modifier.height(10.dp))

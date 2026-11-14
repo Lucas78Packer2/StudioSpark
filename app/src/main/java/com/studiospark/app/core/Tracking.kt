@@ -69,7 +69,7 @@ class TrackingSession {
         if (asMidi && take.notes.isNotEmpty()) { val tr = p.track(toTrackId ?: take.trackId) ?: error("MIDI takes need an instrument track")
             take.notes.forEach { tr.notes.add(it.copy(start = it.start + take.start)) }; take.placed = true; if (take.id !in tr.playlist) tr.playlist.add(take.id); if (previewTakeId == takeId) previewTakeId = null; return tr }
         val track = p.track(toTrackId ?: take.trackId) ?: Track(name = rename ?: take.source, family = family, instrumentId = if (family == Family.VOCAL) "vox_mic" else "vox_mic", color = TrackColors.all[p.tracks.size % TrackColors.all.size]).also { p.tracks.add(it) }
-        val clip = Clip(audioId = take.audioId, start = take.start, length = take.length, name = take.name, takeId = take.id)
+        val clip = Clip(audioId = take.audioId, start = take.start, length = take.length, name = take.name, takeId = take.id, printed = take.printed)
         if (mode == RecordMode.PUNCH) { // punch replaces only the punched region of overlapping clips (non-destructively: originals stay in the playlist)
             val inP = take.start; val outP = take.start + take.length
             val replaced = track.clips.filter { it.start < outP && it.end > inP }

@@ -153,14 +153,23 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
             val notes = t.notes.sortedBy { it.start }.toTypedArray()
             val syl = t.lyrics.filter { !it.startsWith("[") }.joinToString(" ").lowercase().split(Regex("[^a-z]+")).filter { it.isNotBlank() }.flatMap { w -> Regex("[aeiouy]+").findAll(w).map { m -> m.value.first().let { c -> if (c == 'y') 'i' else c } }.toList().ifEmpty { listOf('a') } }
             TrackSnap(t.id, t.family, voice, kit, t.clips.map { it.copy() }.toTypedArray(), notes, CharArray(notes.size) { syl.getOrElse(it % maxOf(1, syl.size)) { 'a' } },
-                Shapers.dbToLin(t.volumeDb), t.pan, t.mute, t.solo, t.inputMonitor, t.recArm, inst.source == SoundSource.MIC || t.family == Family.AUDIO || (t.family == Family.VOCAL && inst.voice == "mic"),
-                proc, t.automation.sortedBy { it.at }.toTypedArray(), t.automationOn, inst.brightness, when { t.voiceStyle.contains("Bright") -> 1; t.voiceStyle.contains("Breathy") -> 2; else -> 0 }, procR)
+                Shapers.dbToLin(t.volumeDb), t.pan, t.mute, t.solo, t.inputMonitor, t.recArm, micInputFor(t, inst),
+                proc, t.automation.sortedBy { it.at }.toTypedArray(), t.automationOn, inst.brightness, when { t.voiceStyle.contains("Bright") -> 1; t.voiceStyle.contains("Breathy") -> 2; else -> 0 }, procR,
+                printTone = t.printTone && micInputFor(t, inst) && !(inst.source == SoundSource.MIC || t.family == Family.AUDIO || t.family == Family.VOCAL))
         }
         rigs.retain(p.tracks.map { it.id }.toSet())
         mixer.snap = MixSnap(p, snaps)
         engine.wantInput = p.tracks.any { (it.recArm || it.inputMonitor) && snaps.first { s -> s.id == it.id }.micInput } || tunerOn
         if (engine.wantInput && ready) engine.start()
     }
+    /** Mic tracks (vocal/audio) always take the input; guitar and bass take it when their Source is set to Mic. */
+    fun micInputFor(t: Track, inst: InstrumentDef = project.instrument(t.instrumentId)) = inst.source == SoundSource.MIC || t.family == Family.AUDIO || (t.family == Family.VOCAL && inst.voice == "mic") ||
+        (t.useMic && (t.family == Family.GUITAR || t.family == Family.BASS))
+    /** Instrument/Mic source for guitar and bass. Switching to Mic loads the mic rig preset when the track still has its stock rig. */
+    fun setTrackSource(t: Track, mic: Boolean) { rigs.want(t.id)
+        setTrack(t.id) { useMic = mic
+            if (mic && (rig.presetName == RigPresets.defaultFor(family).presetName || rig.presetName == "Init" || rig.slots.isEmpty())) RigPresets.micFor(family)?.let { rig = it.build() } }
+        message = if (mic) "${t.name} now records from the mic through its rig. Use wired or USB headphones to monitor." else "${t.name} is back on the instrument" }
     fun groupFor(voice: String): String? = when { voice.startsWith("kit:") -> "drums"; voice == "mic" || voice == "voice" -> null; voice.startsWith("tex") -> "textures"
         voice in setOf("sub_bass", "saw_lead", "warm_pad", "square_arp", "pluck", "brass_synth", "wt_glass", "wt_vowel", "fm_ep", "fm_bell", "fm_bass", "organ") -> null; else -> voice }
 
@@ -255,12 +264,13 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
         val made = mutableListOf<Take>()
         for (pass in passes) { if (pass.audio.size < ENGINE_SR / 20 && pass.notes.isEmpty()) continue
             val id = newId(); pool.put(id, pass.audio)
-            made += mixer.session.finishPass(project, listOf(Triple(pass.trackId, id, pass.audio.size.toLong())), pass.source, pass.start).onEach { it.notes.addAll(pass.notes) } }
+            made += mixer.session.finishPass(project, listOf(Triple(pass.trackId, id, pass.audio.size.toLong())), pass.source, pass.start).onEach { it.notes.addAll(pass.notes); it.printed = pass.printed } }
         if (made.isNotEmpty()) { changed(); message = "${made.size} take${if (made.size > 1) "s" else ""} recorded — Listen, then Place or Discard" }
     }
     fun listen(take: Take) { val a = pool.get(take.audioId) ?: return; if (previewingTakeId == take.id) { stopPreview(); return }
         mixer.session.listen(take.id); previewingTakeId = take.id
-        val rig = project.track(take.trackId)?.rig?.let { RigProcessor(ENGINE_SR.toFloat(), it) }
+        // printed takes already carry the tone; dry takes are auditioned through the track's rig
+        val rig = if (take.printed) null else project.track(take.trackId)?.rig?.let { RigProcessor(ENGINE_SR.toFloat(), it) }
         engine.preview(a, rig) }
     fun stopPreview() { engine.preview(null); previewingTakeId = null; mixer.session.listen(null); upload?.auditioning = false }
     fun place(take: Take, toTrack: String? = take.trackId, asMidi: Boolean = false) { stopPreview(); var tr: Track? = null

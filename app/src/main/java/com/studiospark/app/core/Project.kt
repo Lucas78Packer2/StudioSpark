@@ -9,16 +9,22 @@ const val ENGINE_SR = 48000
 
 fun newId(): String = UUID.randomUUID().toString().substring(0, 8)
 
-class Clip(val id: String = newId(), var audioId: String, var start: Long, var offset: Long = 0, var length: Long, var gainDb: Float = 0f, var rate: Float = 1f, var name: String = "Clip", var takeId: String? = null) {
+/**
+ * A non-destructive window onto pooled audio. [printed] clips already carry the track's amp/pedal tone (captured post-rig),
+ * so playback bypasses the rig for them and the effects are never applied twice.
+ */
+class Clip(val id: String = newId(), var audioId: String, var start: Long, var offset: Long = 0, var length: Long, var gainDb: Float = 0f, var rate: Float = 1f, var name: String = "Clip", var takeId: String? = null,
+           var printed: Boolean = false) {
     val end get() = start + (length / rate).toLong()
-    fun copy(id: String = this.id) = Clip(id, audioId, start, offset, length, gainDb, rate, name, takeId)
+    fun copy(id: String = this.id) = Clip(id, audioId, start, offset, length, gainDb, rate, name, takeId, printed)
 }
 
 data class MidiNote(val pitch: Int, val start: Long, val length: Long, val velocity: Int)
 data class AutoPoint(val at: Long, val db: Float)
 
 /** A recorded pass. Takes are private until the user Places them; Discard removes them. Placed takes stay in the track's playlist (non-destructive). */
-class Take(val id: String = newId(), val audioId: String, var trackId: String?, val start: Long, val length: Long, val name: String, val source: String, val createdAt: Long = System.currentTimeMillis(), var placed: Boolean = false, var savedToLibrary: Boolean = false, val notes: MutableList<MidiNote> = mutableListOf())
+class Take(val id: String = newId(), val audioId: String, var trackId: String?, val start: Long, val length: Long, val name: String, val source: String, val createdAt: Long = System.currentTimeMillis(), var placed: Boolean = false, var savedToLibrary: Boolean = false, val notes: MutableList<MidiNote> = mutableListOf(),
+           /** Captured after the track's rig ("Print processed tone"). */ var printed: Boolean = false)
 
 class Track(
     val id: String = newId(), var name: String, var family: Family, var instrumentId: String, var color: Long,
@@ -28,6 +34,10 @@ class Track(
     var rig: Rig = RigPresets.defaultFor(family), val playlist: MutableList<String> = mutableListOf(),
     var kitId: String? = null, var tuning: String? = null, var lyrics: MutableList<String> = mutableListOf(), var voiceStyle: String = "Pop · warm",
     var automationOn: Boolean = false,
+    /** Guitar/Bass source: false = the on-screen/MIDI instrument, true = the mic/interface input through this track's rig. */
+    var useMic: Boolean = false,
+    /** Mic recordings on this track are captured post-rig (amp, pedals, FX printed) and play back with the rig bypassed. Default on (GitHub issue 1). */
+    var printTone: Boolean = true,
 )
 
 class Project(
@@ -84,12 +94,12 @@ object ProjectJson {
         put("tracks", JSONArray().apply { p.tracks.forEach { t -> put(JSONObject().apply {
             put("id", t.id); put("name", t.name); put("family", t.family.name); put("inst", t.instrumentId); put("color", t.color); put("vol", t.volumeDb.toDouble()); put("pan", t.pan.toDouble())
             put("mute", t.mute); put("solo", t.solo); put("arm", t.recArm); put("mon", t.inputMonitor); put("input", t.inputSource); put("kit", t.kitId ?: ""); put("tuning", t.tuning ?: "")
-            put("voice", t.voiceStyle); put("autoOn", t.automationOn); put("lyrics", JSONArray(t.lyrics)); put("playlist", JSONArray(t.playlist)); put("rig", rig(t.rig))
-            put("clips", JSONArray().apply { t.clips.forEach { c -> put(JSONObject().put("id", c.id).put("a", c.audioId).put("s", c.start).put("o", c.offset).put("l", c.length).put("g", c.gainDb.toDouble()).put("r", c.rate.toDouble()).put("n", c.name).put("take", c.takeId ?: "")) } })
+            put("voice", t.voiceStyle); put("autoOn", t.automationOn); put("useMic", t.useMic); put("print", t.printTone); put("lyrics", JSONArray(t.lyrics)); put("playlist", JSONArray(t.playlist)); put("rig", rig(t.rig))
+            put("clips", JSONArray().apply { t.clips.forEach { c -> put(JSONObject().put("id", c.id).put("a", c.audioId).put("s", c.start).put("o", c.offset).put("l", c.length).put("g", c.gainDb.toDouble()).put("r", c.rate.toDouble()).put("n", c.name).put("take", c.takeId ?: "").put("pr", c.printed)) } })
             put("notes", JSONArray().apply { t.notes.forEach { n -> put(JSONArray().put(n.pitch).put(n.start).put(n.length).put(n.velocity)) } })
             put("auto", JSONArray().apply { t.automation.forEach { a -> put(JSONArray().put(a.at).put(a.db.toDouble())) } })
         }) } })
-        put("takes", JSONArray().apply { p.takes.forEach { k -> put(JSONObject().put("id", k.id).put("a", k.audioId).put("track", k.trackId ?: "").put("s", k.start).put("l", k.length).put("n", k.name).put("src", k.source).put("at", k.createdAt).put("placed", k.placed).put("lib", k.savedToLibrary).put("notes", JSONArray().apply { k.notes.forEach { n -> put(JSONArray().put(n.pitch).put(n.start).put(n.length).put(n.velocity)) } })) } })
+        put("takes", JSONArray().apply { p.takes.forEach { k -> put(JSONObject().put("id", k.id).put("a", k.audioId).put("track", k.trackId ?: "").put("s", k.start).put("l", k.length).put("n", k.name).put("src", k.source).put("at", k.createdAt).put("placed", k.placed).put("lib", k.savedToLibrary).put("pr", k.printed).put("notes", JSONArray().apply { k.notes.forEach { n -> put(JSONArray().put(n.pitch).put(n.start).put(n.length).put(n.velocity)) } })) } })
         put("kits", JSONArray().apply { p.customKits.forEach { put(kit(it)) } })
         put("insts", JSONArray().apply { p.customInstruments.forEach { put(inst(it)) } })
         put("builds", JSONArray().apply { p.stringBuilds.forEach { put(StringCatalog.toJson(it)) } })
@@ -104,14 +114,14 @@ object ProjectJson {
         val ta = o.optJSONArray("tracks") ?: JSONArray()
         for (i in 0 until ta.length()) { val t = ta.getJSONObject(i)
             val tr = Track(t.getString("id"), t.getString("name"), Family.valueOf(t.getString("family")), t.getString("inst"), t.getLong("color"), t.optDouble("vol", 0.0).toFloat(), t.optDouble("pan", 0.0).toFloat(), t.optBoolean("mute"), t.optBoolean("solo"), t.optBoolean("arm"), t.optBoolean("mon"), t.optString("input", "phone_mic"))
-            tr.rig = t.optJSONObject("rig")?.let { rig(it) } ?: RigPresets.defaultFor(tr.family); tr.kitId = t.optString("kit").ifBlank { null }; tr.tuning = t.optString("tuning").ifBlank { null }; tr.voiceStyle = t.optString("voice", tr.voiceStyle); tr.automationOn = t.optBoolean("autoOn")
+            tr.rig = t.optJSONObject("rig")?.let { rig(it) } ?: RigPresets.defaultFor(tr.family); tr.kitId = t.optString("kit").ifBlank { null }; tr.tuning = t.optString("tuning").ifBlank { null }; tr.voiceStyle = t.optString("voice", tr.voiceStyle); tr.automationOn = t.optBoolean("autoOn"); tr.useMic = t.optBoolean("useMic"); tr.printTone = t.optBoolean("print", true)
             t.optJSONArray("lyrics")?.let { a -> for (k in 0 until a.length()) tr.lyrics.add(a.getString(k)) }
             t.optJSONArray("playlist")?.let { a -> for (k in 0 until a.length()) tr.playlist.add(a.getString(k)) }
-            t.optJSONArray("clips")?.let { a -> for (k in 0 until a.length()) { val c = a.getJSONObject(k); tr.clips.add(Clip(c.getString("id"), c.getString("a"), c.getLong("s"), c.optLong("o"), c.getLong("l"), c.optDouble("g", 0.0).toFloat(), c.optDouble("r", 1.0).toFloat(), c.optString("n", "Clip"), c.optString("take").ifBlank { null })) } }
+            t.optJSONArray("clips")?.let { a -> for (k in 0 until a.length()) { val c = a.getJSONObject(k); tr.clips.add(Clip(c.getString("id"), c.getString("a"), c.getLong("s"), c.optLong("o"), c.getLong("l"), c.optDouble("g", 0.0).toFloat(), c.optDouble("r", 1.0).toFloat(), c.optString("n", "Clip"), c.optString("take").ifBlank { null }, c.optBoolean("pr"))) } }
             t.optJSONArray("notes")?.let { a -> for (k in 0 until a.length()) { val n = a.getJSONArray(k); tr.notes.add(MidiNote(n.getInt(0), n.getLong(1), n.getLong(2), n.getInt(3))) } }
             t.optJSONArray("auto")?.let { a -> for (k in 0 until a.length()) { val n = a.getJSONArray(k); tr.automation.add(AutoPoint(n.getLong(0), n.getDouble(1).toFloat())) } }
             p.tracks.add(tr) }
-        o.optJSONArray("takes")?.let { a -> for (k in 0 until a.length()) { val t = a.getJSONObject(k); p.takes.add(Take(t.getString("id"), t.getString("a"), t.optString("track").ifBlank { null }, t.getLong("s"), t.getLong("l"), t.getString("n"), t.optString("src"), t.optLong("at"), t.optBoolean("placed"), t.optBoolean("lib")).also { tk -> t.optJSONArray("notes")?.let { na -> for (q in 0 until na.length()) { val n = na.getJSONArray(q); tk.notes.add(MidiNote(n.getInt(0), n.getLong(1), n.getLong(2), n.getInt(3))) } } }) } }
+        o.optJSONArray("takes")?.let { a -> for (k in 0 until a.length()) { val t = a.getJSONObject(k); p.takes.add(Take(t.getString("id"), t.getString("a"), t.optString("track").ifBlank { null }, t.getLong("s"), t.getLong("l"), t.getString("n"), t.optString("src"), t.optLong("at"), t.optBoolean("placed"), t.optBoolean("lib"), printed = t.optBoolean("pr")).also { tk -> t.optJSONArray("notes")?.let { na -> for (q in 0 until na.length()) { val n = na.getJSONArray(q); tk.notes.add(MidiNote(n.getInt(0), n.getLong(1), n.getLong(2), n.getInt(3))) } } }) } }
         o.optJSONArray("kits")?.let { a -> for (k in 0 until a.length()) p.customKits.add(kit(a.getJSONObject(k))) }
         o.optJSONArray("insts")?.let { a -> for (k in 0 until a.length()) p.customInstruments.add(inst(a.getJSONObject(k))) }
         o.optJSONArray("builds")?.let { a -> for (k in 0 until a.length()) p.stringBuilds.add(StringCatalog.fromJson(a.getJSONObject(k))) }

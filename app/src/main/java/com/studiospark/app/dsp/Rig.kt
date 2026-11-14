@@ -47,6 +47,7 @@ class RigProcessor(val sr: Float, val rig: Rig) {
 data class RigPreset(val name: String, val family: Family?, val build: () -> Rig)
 
 object RigPresets {
+    const val MIC_GUITAR = "Mic Guitar (gate › EQ › comp › amp)"; const val MIC_BASS = "Mic Bass (gate › EQ › comp › amp)"
     private fun rig(name: String, vararg ids: String, tweak: (Rig) -> Unit = {}) = Rig(presetName = name).also { r -> ids.forEach { r.add(it) }; tweak(r) }
     private fun Rig.set(gear: String, key: String, v: Float) { val s = slots.first { it.gearId == gear }; val i = s.gear.params.indexOfFirst { it.key == key }; s.values[i] = v }
 
@@ -66,7 +67,11 @@ object RigPresets {
         RigPreset("Vocal Chain", Family.VOCAL) { rig("Vocal Chain", "rack_peq", "atlas_pre", "rack_opto", "rack_plate", "rack_delay") { it.set("rack_peq", "hpf", 90f) } },
         RigPreset("Orchestral Hall", Family.ORCHESTRAL) { rig("Orchestral Hall", "rack_peq", "rack_opto", "hall_verb") },
         RigPreset("Clean Audio", Family.AUDIO) { rig("Clean Audio", "rack_peq", "rack_opto", "rack_limit") },
+        // Mic'd guitar/bass: gate first (room noise), then EQ (rumble cut), compressor, amp and cab. Existing DSP only.
+        RigPreset(MIC_GUITAR, Family.GUITAR) { rig(MIC_GUITAR, "quiet_gate", "rack_peq", "squeeze_comp", "citrus_valve", "cab_412") { it.set("quiet_gate", "thr", -48f); it.set("rack_peq", "hpf", 90f); it.set("squeeze_comp", "ratio", 4f) } },
+        RigPreset(MIC_BASS, Family.BASS) { rig(MIC_BASS, "quiet_gate", "rack_peq", "squeeze_comp", "fathom_bass", "cab_810") { it.set("quiet_gate", "thr", -50f); it.set("rack_peq", "hpf", 35f); it.set("squeeze_comp", "ratio", 4f) } },
     )
+    fun micFor(f: Family): RigPreset? = factory.firstOrNull { it.name == if (f == Family.BASS) MIC_BASS else if (f == Family.GUITAR) MIC_GUITAR else "" }
 
     fun defaultFor(f: Family): Rig = (factory.firstOrNull { it.family == f } ?: factory.first { it.family == Family.AUDIO }).build()
 }

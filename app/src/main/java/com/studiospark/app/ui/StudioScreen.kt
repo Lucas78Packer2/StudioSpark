@@ -281,10 +281,12 @@ const val AudioPoolBlock = 256
         Spacer(Modifier.height(10.dp))
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Dropdown("Instrument", inst.name, vm.project.allInstruments(), { "${it.category} · ${it.name}" }) { vm.setInstrument(t, it) }
+            if (t.family == Family.GUITAR || t.family == Family.BASS) Dropdown("Source", if (t.useMic) "Mic" else "Instrument", listOf("Instrument", "Mic"), { it }) { s -> val mic = s == "Mic"; if (mic != t.useMic) { if (mic) vm.withMic { vm.setTrackSource(t, true) } else vm.setTrackSource(t, false) } }
             if (t.family == Family.GUITAR || t.family == Family.BASS) Dropdown("Tuning", t.tuning ?: inst.tuning ?: "Standard", if (t.family == Family.BASS) Tunings.bass else Tunings.guitar, { it.name }) { tu -> vm.setTrack(t.id) { tuning = tu.name } }
             if (t.family == Family.DRUMS) Dropdown("Kit", DrumKits.byId(t.kitId ?: "", vm.project.customKits)?.name ?: "Kit", DrumKits.factory + vm.project.customKits, { it.name }) { k -> vm.setTrack(t.id) { kitId = k.id } }
             Dropdown("Input", vm.inputDevices.firstOrNull { it.id == vm.inputDeviceId }?.name ?: "Phone microphone", vm.inputDevices, { it.name }, onOpen = { vm.ensureInputs() }) { vm.pickInput(it.id) }
         }
+        if ((t.family == Family.GUITAR || t.family == Family.BASS) && t.useMic) MicSourcePanel(vm, t)
         Spacer(Modifier.height(12.dp))
         // rig summary → opens the tone step of the upload flow
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).chrome(p).clickable { vm.openUpload("rig", t) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -298,6 +300,25 @@ const val AudioPoolBlock = 256
     if (t.family == Family.KEYS || t.family == Family.SYNTH || t.family == Family.ORCHESTRAL || t.family == Family.BASS || t.family == Family.VOCAL || t.notes.isNotEmpty()) PianoRoll(vm, t)
     if (inst.voice == "voice" || t.lyrics.isNotEmpty()) LyricSheet(vm, t)
     if (!vm.chromeHidden) AutomationPanel(vm, t)
+}
+
+/** Guitar/Bass on Mic: monitor through the rig, record dry or printed (GitHub issue 1), mic rig preset. */
+@Composable private fun MicSourcePanel(vm: StudioVM, t: Track) {
+    val p = LocalPalette.current
+    Spacer(Modifier.height(10.dp))
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(p.inset).padding(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) { Text("Print processed tone", style = Type.bodyStrong, color = p.text)
+                Text(if (t.printTone) "Records what you hear: amp, pedals and effects are printed, and playback skips the rig so nothing is applied twice." else "Records the dry mic; the rig is applied on playback so you can change the tone later.", style = Type.small, color = p.textFaint) }
+            Switch(t.printTone, { on -> vm.setTrack(t.id) { printTone = on } }, colors = SwitchDefaults.colors(checkedTrackColor = p.accent), modifier = Modifier.semantics { contentDescription = "Print processed tone ${t.name}" })
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            ToolButton(if (t.inputMonitor) "Monitoring through rig" else "Monitor through rig", icon = Icons.Default.Headphones, active = t.inputMonitor, accent = p.monitor) { vm.toggleMonitor(t) }
+            RigPresets.micFor(t.family)?.let { pr -> ToolButton("Mic rig preset", icon = Icons.Default.Tune, active = t.rig.presetName == pr.name) { vm.setTrack(t.id) { rig = pr.build() } } }
+        }
+        Text("Use wired or USB headphones: Bluetooth adds 100 ms or more, and the speaker feeds back into the mic.", style = Type.label.copy(letterSpacing = 0.sp), color = p.textFaint, modifier = Modifier.padding(top = 6.dp))
+    }
 }
 
 /** Choose a play surface (strings, keys, kit, pads) for any track; universal Record on every surface. */

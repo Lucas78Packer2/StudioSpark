@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 
 /** A finished recording pass for one destination (a track id, or null for the jam room). */
-class CapturedPass(val trackId: String?, val audio: ShortArray, val notes: List<MidiNote>, val start: Long, val source: String)
+class CapturedPass(val trackId: String?, val audio: ShortArray, val notes: List<MidiNote>, val start: Long, val source: String, val printed: Boolean = false)
 
 data class InputDevice(val id: Int, val name: String, val type: Int, val external: Boolean)
 
@@ -140,7 +140,7 @@ class AudioEngine(private val ctx: Context, val mixer: Mixer) {
         val comp = mixer.latencyCompFrames
         for (t in s.tracks) { val ch = mixer.channels[t.id] ?: continue
             if (ch.captureLen > 0) { val audio = ch.takeCapture(); val notes = ch.capturedNotes.map { it.copy(start = it.start - mixer.session.passStart) }.filter { it.start >= 0 }; ch.capturedNotes.clear(); ch.liveStarts.clear()
-                passes += CapturedPass(t.id, audio, notes, if (t.micInput) (mixer.session.passStart - comp).coerceAtLeast(0) else mixer.session.passStart, if (t.micInput) "Mic" else "Instrument") } }
+                passes += CapturedPass(t.id, audio, notes, if (t.micInput) (mixer.session.passStart - comp).coerceAtLeast(0) else mixer.session.passStart, if (t.micInput) "Mic" else "Instrument", printed = t.micInput && t.printTone) } }
         if (passes.isNotEmpty()) main.post { onPasses?.invoke(passes) }
     }
     init { mixer.onLoopWrap = { if (mixer.session.state == TransportState.RECORDING) collectPasses("Loop pass") } }
