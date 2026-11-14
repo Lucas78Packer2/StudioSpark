@@ -31,6 +31,17 @@ internal fun pumpUntil(timeoutMs: Long = 20_000, cond: () -> Boolean): Boolean {
 internal fun pumpFor(ms: Long) { val end = System.currentTimeMillis() + ms; while (System.currentTimeMillis() < end) { shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(50)); Thread.sleep(10) } }
 internal fun launcherIntent() = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
     .setComponent(ComponentName("com.studiospark.app", "com.studiospark.app.MainActivity")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+internal class FreshInstallRule : org.junit.rules.ExternalResource() {
+    private fun wipe() { val ctx = ApplicationProvider.getApplicationContext<android.app.Application>()
+        File(ctx.filesDir, "session").deleteRecursively(); ctx.getSharedPreferences("studiospark", 0).edit().clear().commit() }
+    /** Robolectric makes a new Application per test, but AndroidViewModelFactory caches the first one in a static; drop it so each test's ViewModel uses its own app. */
+    private fun resetViewModelFactory() { runCatching { val c = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory::class.java
+        c.declaredFields.filter { java.lang.reflect.Modifier.isStatic(it.modifiers) && it.type == c }.forEach { it.isAccessible = true; it.set(null, null) } } }
+    override fun before() { resetViewModelFactory(); wipe() }
+    // the app saves edits ~0.8 s after the last change (by design); let a pending save from this test land, then remove it
+    // (the delay runs on the main-looper clock, so advance it, then give the IO write time to finish)
+    override fun after() { runCatching { shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(3)) }; Thread.sleep(500); wipe() }
+}
 internal val SRC_MAIN = File("src/main").takeIf { it.exists() } ?: File("app/src/main")
 
 /**
@@ -43,7 +54,9 @@ internal val SRC_MAIN = File("src/main").takeIf { it.exists() } ?: File("app/src
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
 class LaunchFailureModeTests {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    val compose = createAndroidComposeRule<MainActivity>()
+    /** Every test starts as a fresh install: no saved session or settings from an earlier test. */
+    @get:Rule val chain: org.junit.rules.RuleChain = org.junit.rules.RuleChain.outerRule(FreshInstallRule()).around(compose)
 
     private fun vm() = ViewModelProvider(compose.activity)[StudioVM::class.java]
 
@@ -56,6 +69,7 @@ class LaunchFailureModeTests {
             val ctrl = Robolectric.buildActivity(MainActivity::class.java, launcherIntent()).setup()
             val a = ctrl.get()
             val vm = ViewModelProvider(a)[StudioVM::class.java]
+            assertSame("ViewModel bound to a stale Application", a.application, vm.getApplication())
             assertTrue("startup never finished", pumpUntil { vm.ready })
             pumpFor(500)
             assertFalse("activity finished itself on launch", a.isFinishing)
@@ -75,7 +89,8 @@ class LaunchFailureModeTests {
         // Fresh install (no saved project): startup completes, state is empty-but-valid, and MainScreen composes the basic studio.
         val vm = vm()
         compose.waitUntil(20_000) { vm.ready }
-        assertTrue(vm.project.tracks.isEmpty()); assertNull(vm.selectedTrackId); assertNull(vm.selectedTrack())
+        val ctxDbg = ApplicationProvider.getApplicationContext<android.app.Application>(); val pj = File(ctxDbg.filesDir, "session/project.json")
+        assertTrue("fresh install should have no tracks: ${vm.project.tracks.map { it.name }} name=${vm.project.name} file=${pj.exists()} files=${ctxDbg.filesDir} vmApp=${(vm.getApplication<android.app.Application>()).filesDir}", vm.project.tracks.isEmpty()); assertNull(vm.selectedTrackId); assertNull(vm.selectedTrack())
         assertNotNull(vm.mixer.snap); assertEquals(0, vm.rigs.builtCount())
         compose.onNodeWithText("Add instrument or gear").assertExists()
         compose.onNodeWithText("StudioSpark").assertExists()

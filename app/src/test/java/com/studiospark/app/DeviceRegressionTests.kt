@@ -31,13 +31,17 @@ import kotlinx.coroutines.launch
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
 class DeviceRegressionTests {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    val compose = createAndroidComposeRule<MainActivity>()
+    /** Every test starts as a fresh install: no saved session or settings from an earlier test. */
+    @get:Rule val chain: org.junit.rules.RuleChain = org.junit.rules.RuleChain.outerRule(FreshInstallRule()).around(compose)
     private fun vm() = ViewModelProvider(compose.activity)[StudioVM::class.java].also { v -> compose.waitUntil(20_000) { v.ready } }
 
     /** Counts Compose snapshot state changes over [ms] of pumped time with the transport stopped: a perpetual ticker/animation shows up here. */
     private fun stateChangesWhileIdle(ms: Long): Int {
         compose.waitForIdle()
-        val n = AtomicInteger(0); val h = Snapshot.registerGlobalWriteObserver { n.incrementAndGet() }
+        // settle 1 s first (ripples/press states from the last click finish), then count writes in the measured window
+        repeat(20) { shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(50)); compose.mainClock.advanceTimeBy(50); Snapshot.sendApplyNotifications() }
+        val n = AtomicInteger(0); val h = Snapshot.registerGlobalWriteObserver { o -> if (n.incrementAndGet() <= 5) println("IDLE-WRITE: " + o.toString().take(120)) }
         // advance the real main-looper clock (ViewModel ticker delays live there) and the Compose frame clock together
         try { repeat((ms / 50).toInt()) { shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(50)); compose.mainClock.advanceTimeBy(50); Snapshot.sendApplyNotifications() } }
         finally { h.dispose() }
@@ -81,14 +85,14 @@ class DeviceRegressionTests {
         compose.runOnIdle { v.roomAdd("instrument", "gtr_0"); v.roomAdd("pedal", "mid_push"); v.roomAdd("amp", "citrus_valve"); v.roomAdd("cab", "cab_412") }
         compose.waitForIdle()
         assertEquals(4, v.project.room.size)
-        assertTrue("room never went idle: perpetual state changes", stateChangesWhileIdle(3_000) <= 1)
+        assertTrue("room never went idle: perpetual state changes", stateChangesWhileIdle(3_000) == 0)
     }
 
     // ---------------------------------------------------------------- (c) Drum Kit tab idle + Stop
     @Test fun c_drumKitTabGoesIdleAndStopWorks() {
         val v = vm()
         compose.onNodeWithContentDescription("Drum Kit tab").performScrollTo().performClick(); compose.waitForIdle()
-        assertTrue(stateChangesWhileIdle(2_000) <= 1)
+        assertTrue(stateChangesWhileIdle(2_000) == 0)
         compose.onNodeWithContentDescription("Play").performClick()
         assertTrue("transport never started", pumpUntil(10_000) { v.transport == TransportState.PLAYING })
         compose.onNodeWithContentDescription("Stop").performClick()
@@ -98,7 +102,7 @@ class DeviceRegressionTests {
         assertTrue(pumpUntil(10_000) { v.transport == TransportState.RECORDING || v.transport == TransportState.COUNT_IN })
         compose.onNode(hasText("Stop") and hasContentDescription("Stop")).performScrollTo().performClick()
         assertTrue("drum Stop button did not stop recording", pumpUntil(10_000) { v.transport == TransportState.STOPPED })
-        compose.waitForIdle(); assertTrue(stateChangesWhileIdle(2_000) <= 2)
+        compose.waitForIdle(); assertTrue(stateChangesWhileIdle(2_000) == 0)
     }
 
     // ---------------------------------------------------------------- (d) synth (keys surface) idle + Stop
@@ -109,12 +113,15 @@ class DeviceRegressionTests {
         val t = v.selectedTrack()!!; assertEquals(synth.id, t.instrumentId)
         assertEquals("adding the synth built exactly its rig", setOf(t.id), v.rigs.builtIds())
         compose.runOnIdle { v.noteOn(60, 100); v.noteOff(60) }
-        assertTrue(stateChangesWhileIdle(2_000) <= 3)
+        // the note's release and the meters' fall-off are finite: wait for them, then the screen must be fully idle
+        val settled = pumpUntil(10_000) { v.mixer.channels.values.all { it.voices.isEmpty() } && v.meters.values.all { it <= 0.001f } && v.masterL <= 0.001f }
+        assertTrue("synth voice/meters never settled: voices=${v.mixer.channels.mapValues { it.value.voices.size }} meters=${v.meters} master=${v.masterL} peaks=${v.mixer.trackPeaks} transport=${v.transport} engineInput=${v.engine.inputActive}", settled)
+        assertTrue(stateChangesWhileIdle(2_000) == 0)
         compose.onNodeWithContentDescription("Play").performClick()
         assertTrue(pumpUntil(10_000) { v.transport == TransportState.PLAYING })
         compose.onNodeWithContentDescription("Stop").performClick()
         assertTrue(pumpUntil(10_000) { v.transport == TransportState.STOPPED })
-        compose.waitForIdle(); assertTrue(stateChangesWhileIdle(2_000) <= 2)
+        compose.waitForIdle(); assertTrue(stateChangesWhileIdle(2_000) == 0)
     }
 
     /** Self-check: the idle detector really catches a perpetual main-thread ticker (so the idle tests above are not passing vacuously). */
@@ -127,6 +134,6 @@ class DeviceRegressionTests {
     // ---------------------------------------------------------------- ticker: no state churn when nothing is happening
     @Test fun tickerStopsPublishingWhenIdle() {
         vm(); compose.waitForIdle()
-        assertTrue(stateChangesWhileIdle(3_000) <= 1)
+        assertTrue(stateChangesWhileIdle(3_000) == 0)
     }
 }
