@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.StudioSpark" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF141518</item>
+        <item name="android:statusBarColor">#FF141518</item>
+        <item name="android:navigationBarColor">#FF141518</item>
+        <item name="android:windowSplashScreenBackground">#FF141518</item>
+    </style>
+</resources>

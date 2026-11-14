@@ -1,0 +1,8 @@
+# Original audio provenance
+All staging audio is generated from original equations, deterministic pseudo-random excitation and original algorithmically authored musical arrangements in generate.py. No input audio files are opened by the generator. No external samples, MIDI files, melodies, loops, impulse responses, model weights or commercial hardware recordings are used. NumPy is a numerical tool, not an incorporated audio library; its software terms remain separate from generated audio rights.
+
+These are original project-generated assets, not a claim that copyright or software notices vanish. No branded exact-replica claims. No free library fallback was used. Historical excluded assets were not processed.
+
+Each composition has24bars in six sections: introduction, primary theme, answering development, contrasting passage, varied return, cadential ending. Six synchronized stems and a quantized stem-sum mix are provided. Algorithmic authorship and technical structure are disclosed; human musical/listening acceptance remains outstanding.
+
+PCM16 mono22.05kHz. Pitched sample roots MIDI48–81 every three semitones; three independently excited/timbrally varied dynamics. Finite2.2s envelopes with end fades, no sustain-loop claim. Held-note looping requires additional authored loop work; do not silently loop these files.

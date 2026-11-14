@@ -1,0 +1,602 @@
+[
+  {
+    "file": "guitar-37-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/db2_vl2_rr1_2.wav",
+    "source_sha256": "df674f434b4fef4dd91f510f338175911d0669fff169a7d7279b01255c8e1a61",
+    "sha256": "879341613e21c48e018a685154f56efb23cf0cbcdbe9e53a052d7d47172a31fa",
+    "root_midi": 37,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-37-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/db2_vl2_rr2_2.wav",
+    "source_sha256": "4556a1e877e07651a474b30e891b3bfbaa4d7b9b05488f8c5871a82d1c27a4df",
+    "sha256": "4734afbe86dab997ea665e1ffb98057c4b6d616a712f123cdfe6233f716392f5",
+    "root_midi": 37,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-37-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/db2_vl4_rr1_2.wav",
+    "source_sha256": "19b9f0f684f3e31694a3869898a76010cf94592ebe0d2dec911ff15aa1756b68",
+    "sha256": "82217a39884bc40ca818d9907bf949b86ec219e7133d6958ea3344a627cb1789",
+    "root_midi": 37,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-37-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/db2_vl4_rr2_2.wav",
+    "source_sha256": "8a733d20e41a3f73a50a0d2813738d8c4ccbe6f7355aa0a1edf5a81b0d2d8c91",
+    "sha256": "71d391bbbcca89ea80efbf75edf266be8839d1074ad3b2677da41846a085458d",
+    "root_midi": 37,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-40-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/e2_vl2_rr1_2.wav",
+    "source_sha256": "23901140e3acdfd7204e810799ca0f7a958310a7a98783badb0a07ab8c4372d3",
+    "sha256": "1b23339754edcc8d3f6ef7c15025dd325eced1cb7d2e76bd5416f0eb3514f898",
+    "root_midi": 40,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-40-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/e2_vl2_rr2_2.wav",
+    "source_sha256": "6127fe58aad0bb88151089430f795e47880827deeba60cffd0fb7236777366bd",
+    "sha256": "6d40b7728f12e6ff8b509a77f40763599a398ef565c32ddbb96a7b138c3ba46a",
+    "root_midi": 40,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-40-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/e2_vl4_rr1_2.wav",
+    "source_sha256": "5affbf2ee2e4bb789ac893155ec9e98e66a37d41d371cb5a6ba789ce1e0a837e",
+    "sha256": "eaa04093e44cc2558644124249f2d200663ddc0ad18f01becf81000cd75c7be2",
+    "root_midi": 40,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-40-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/e2_vl4_rr2_2.wav",
+    "source_sha256": "67870ea0de949ad91aecb4e7d461843fc8945ba2a5ef514d40f265ceed0a6ed4",
+    "sha256": "0aeb5bbcf8e901f6481ec3b8ccdc941a8ab4b435455096f481628348730e2594",
+    "root_midi": 40,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-45-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a2_vl2_rr1_2.wav",
+    "source_sha256": "3381847154cd087a74a4f78692416aa3a7231330c22918afe60cba707319a344",
+    "sha256": "73db21aab6854cce9d58dfe46223a0478e03546689b4354c3703109897600688",
+    "root_midi": 45,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-45-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a2_vl2_rr2_2.wav",
+    "source_sha256": "fbfe43165aaedf6d164a2ebe7e6c77b564440f827d683192fea11afd51b71e89",
+    "sha256": "9059ac23209784f339bdbeee4f7170fe12cf730123dc7c8b39b109f0d0c84611",
+    "root_midi": 45,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-45-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a2_vl4_rr1_2.wav",
+    "source_sha256": "6f7599b1d32d750372e163294536d9913797305e642de5bb873601f2f1100739",
+    "sha256": "34b4611d41b4594a1e4bb2dc8a3c4fd12f95d561381c11a937243695cd9837eb",
+    "root_midi": 45,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-45-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a2_vl4_rr2_2.wav",
+    "source_sha256": "6f51524ac80d446dd4e6aadffa92b4ee0c62852c364d42c4db9d5315962c8711",
+    "sha256": "095e96da036274f75170bd164397672d563de897f7485b7597f179fb28526388",
+    "root_midi": 45,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-54-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/gb3_vl2_rr1_2.wav",
+    "source_sha256": "8c41913a3a4cd38655951bdc22693e20b2fb6dda7cfc474340080c512ee976be",
+    "sha256": "4501a3defc6039ecaafbb9a60520c94a2440ad390dc241ff4d1b349bf23e196f",
+    "root_midi": 54,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-54-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/gb3_vl2_rr2_2.wav",
+    "source_sha256": "e752349c53bbf3ce222f80bda4f6f92ed62aa0b996241bc89bc30c8de66dc604",
+    "sha256": "71b6431587c379f87b2b6ef09073b0dc71fc26660d72fac24419086d8345f99c",
+    "root_midi": 54,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-54-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/gb3_vl4_rr1_2.wav",
+    "source_sha256": "851ae50f8a44630ccfb7da684b0c1b0a004e224660d0dd5ee7a93d44a9d82101",
+    "sha256": "c408aa2f8b01c7ac715d06e51730ba92b66d52629b767f5ea14447adf4d82353",
+    "root_midi": 54,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-54-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/gb3_vl4_rr2_2.wav",
+    "source_sha256": "bc2fcdf22628032edfe7c7ba0946733bbd60de79238d1c46ed1b4365cd6e1e88",
+    "sha256": "cecf53d427b65f4bd9819a39fa26e6a94e247fcfa5a8de43c443ad24e78892b6",
+    "root_midi": 54,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-57-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a3_vl2_rr1_2.wav",
+    "source_sha256": "b6d579078761ae7af663b728663b7bf2cd370a86c4769edebd69c0dfa0e9770d",
+    "sha256": "6743b1853dcb183848d8f5e8b6e1ee2d3c891ddb68fa29229cf33e8a174acd23",
+    "root_midi": 57,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-57-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a3_vl2_rr2_2.wav",
+    "source_sha256": "4cb4e23a65829b3c389a958ab010a7e11895e0e069fbb5a960cdd9ddcfa4e325",
+    "sha256": "cd0c4434dfb56b6bfc383cf1886eb5e82ee2fb22550b4757f535aec1e9073707",
+    "root_midi": 57,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-57-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a3_vl4_rr1_2.wav",
+    "source_sha256": "a281e62aea0ad966520819c42e967fcb940f7e6cc7bf30880a1f78d3b29c5955",
+    "sha256": "e1680e8e9a39c38a29144d9d17fd64a1ec19e3f035b30280df95144af32f620a",
+    "root_midi": 57,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-57-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a3_vl4_rr2_2.wav",
+    "source_sha256": "d54a0cec3b54763d16b567f82c1a7f7d52fbdffbb558f10b2a3687a72fbab3f7",
+    "sha256": "e36979c754f560b826bf7dd4e8cd89211abb45924c2a803bfa34e3fc6a1bca00",
+    "root_midi": 57,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-66-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/gb4_vl2_rr1_2.wav",
+    "source_sha256": "30a02f078df72e0738fc3e09d10ee91f04e1f4001bc7b47a123e03a028af8a9d",
+    "sha256": "f6179508cfb1d9358af1596f440a1af7bfa278e48d27c79120926bfaf8a975ba",
+    "root_midi": 66,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-66-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/gb4_vl2_rr2_2.wav",
+    "source_sha256": "ca8ee42d97c8e901caa9d71a096d9e1fb6fbdd3710de316db4d1f079e6b4f7c4",
+    "sha256": "c6bba19731dbf7f9e5ea6be8ddaf467bec04b3f3b5fd6e4074799c3f3f61dd22",
+    "root_midi": 66,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-66-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/gb4_vl4_rr1_2.wav",
+    "source_sha256": "a87a12487171af9d433035beefc111648493477844a1daeb58b73a7d86a19fe1",
+    "sha256": "7c3ecc612a6917617d26efaeffa5c1c3437d65e7f70a2499bde2af997d109ea6",
+    "root_midi": 66,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-66-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/gb4_vl4_rr2_2.wav",
+    "source_sha256": "9ff2c67c9cbfc829b681ce37f3460ec57ed41941a255a565c8be2debc47f4171",
+    "sha256": "17d38353c90ea5a4369dde6f7aad542a02232cd5c9ea431add18cd45eab23271",
+    "root_midi": 66,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-69-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a4_vl2_rr1_2.wav",
+    "source_sha256": "ef61646f78c34269a6f8ede35e9f0e43e578b3a1b2d581fa4fda2187827595f0",
+    "sha256": "c52d99589a16f82818100632e0c7544065a104a0eb4f089aa1c9cb27b1c74c2c",
+    "root_midi": 69,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-69-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a4_vl2_rr2_2.wav",
+    "source_sha256": "31c7fe2b1513f64f008166db95e27ef4289b4dee782eaed9be69c576b9e13da4",
+    "sha256": "1030b5bdaea807ade8b39b10ced6dfe6f73f4986cdbe95239c75b84913bba5aa",
+    "root_midi": 69,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-69-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a4_vl4_rr1_2.wav",
+    "source_sha256": "889076c5b2fd18a825ca6bbd49e16d114d486dc333da702b7877f5dde59672f1",
+    "sha256": "a0cc605c100aeff21c56dbeb57abcc86076f9d8170de0dc221a5ec73ef6e61fd",
+    "root_midi": 69,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-69-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a4_vl4_rr2_2.wav",
+    "source_sha256": "95c784f465947af1d0b025313496c999364a43b68fe6f17b7f4ab3fffcc0aa86",
+    "sha256": "a7b8f39105d26096ebbed57bd0a6afdd6497d175e13ad189903d7698fe0e9301",
+    "root_midi": 69,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-78-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/gb5_vl2_rr1_2.wav",
+    "source_sha256": "241f72cd6d1069537c6f75ac4dd9c50dd074d4cc0105b96e5d1aad3f4b2eba04",
+    "sha256": "78fde74529aeb420ff37897b11da19664e3fdff783d137da44015549faecb380",
+    "root_midi": 78,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-78-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/gb5_vl2_rr2_2.wav",
+    "source_sha256": "696b9dce36586f48d561f027a0d4233f337d07ed8dbcc71791d5422dad0a8a7b",
+    "sha256": "004d7d1ba50bce54b37d8e15db3915e5f79332260093d3998b9e97bfddb5f98a",
+    "root_midi": 78,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-78-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/gb5_vl4_rr1_2.wav",
+    "source_sha256": "f10736c038a5102f62c5c1bc4e5824db5ece4203524747fd67754981e1b61ef4",
+    "sha256": "d50c0d92636322095a6926aebbe85c7044769d7854154094d037617ac63cf219",
+    "root_midi": 78,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-78-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/gb5_vl4_rr2_2.wav",
+    "source_sha256": "f8ddd7cdda3af1044a6c567bffe92af3b791293685665e5ace1e71914c49d3ba",
+    "sha256": "fcd207efda7d35eca2d891685251a4f5c035aa4303a920e49045a78191efa22a",
+    "root_midi": 78,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-81-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a5_vl2_rr1_2.wav",
+    "source_sha256": "1ec9f38ac782c7ec4d1189e0f225eb9fb0951d3a4c481187a5b5328c020daaf5",
+    "sha256": "0c10ca2862a56b0e4ff360ecfea9003c4f6085d942600ef1e46cbaf63aa420da",
+    "root_midi": 81,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-81-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a5_vl2_rr2_2.wav",
+    "source_sha256": "70c56e8648ee80345a425e998734948f5ca0bf32dd80a16e09841b25ec1a6d12",
+    "sha256": "0ebbfb78fa515f6934b98a99ef0ba441ef7d1f6e0d6ebac305ddc5b5b41bb975",
+    "root_midi": 81,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-81-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a5_vl4_rr1_2.wav",
+    "source_sha256": "f403e85360f881da98f77cee74c082478aae615f8ff608024171d620efadf1a4",
+    "sha256": "fdcf96a80f1866f8922b76c0a63c99f09390b934b6418c1be0a2cbac3c12be39",
+    "root_midi": 81,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "guitar-81-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.shinyguitar/master/Samples/electric/a5_vl4_rr2_2.wav",
+    "source_sha256": "e8446a4e3d92f0881a61d4da3c79bb988947045d6c1bb7c0507ea289497d9dac",
+    "sha256": "fb67b45d6c49bf463cc2a0235b3e28867e0ebd3d663084de25f4bcad369979db",
+    "root_midi": 81,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-23-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_b1_mp_rr2.wav",
+    "source_sha256": "24e425115d5c5f5412305732003a14807e71e3fea6ba831ab06a2b4a1fe3e92b",
+    "sha256": "f5b466cf484b43e89939f1f828e7a916c8733992b03c40f568c8c550889a2c8c",
+    "root_midi": 23,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-23-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_b1_f_rr2.wav",
+    "source_sha256": "6a86e9d4a744f3963e1cc5873a9df8502f8c3e5aa6d2c4fa61075e64057223b5",
+    "sha256": "4aa0c78e51d587f99a103e3f9426da1b63ac276196f2ea3c0dbeb2c9416d0700",
+    "root_midi": 23,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-23-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_b1_mp_rr1.wav",
+    "source_sha256": "8ded98cd5cfd96692cf0851d6c4642c9ce4727ff016399963c7248673f85d454",
+    "sha256": "6b13b11a1acb942b0c0a1b4f1ae5a60307489e0043cb18685a393d23237db7aa",
+    "root_midi": 23,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-23-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_b1_f_rr1.wav",
+    "source_sha256": "4fb3622a2f7f5069bac7eed78a91f15026af96f83e34a34ee43fdb1c99423619",
+    "sha256": "bacfbbcb8fb6fdd8a99c1a9f508749e36c4206de8f886e7ee6a2cef69804e1bb",
+    "root_midi": 23,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-28-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_e2_mp_rr2.wav",
+    "source_sha256": "09bacb73e329b3fd604b79f03699f6ba02fbac284d708037411d1c38896ea0bb",
+    "sha256": "97b4289f22e3f42231e2c526367874a214de417727f45df5873a88d90fb2be46",
+    "root_midi": 28,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-28-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_e2_f_rr2.wav",
+    "source_sha256": "0bf29a5d1d79efe5ed16ccaebe2d89d869773638b13402124c5401edc78644ed",
+    "sha256": "e5accc71b572609d798e602e1bcb1214c3f8b46c32bbb5c213fa53848a6a0ffb",
+    "root_midi": 28,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-28-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_e2_mp_rr1.wav",
+    "source_sha256": "b7d1b2133951584447e38671c3a65d03534d2e3c3b09dc91cadc75398038f556",
+    "sha256": "1052b68718944ec3516e412e876fae4c2f79fc5f22fd71ac67bf8482b35777f8",
+    "root_midi": 28,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-28-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_e2_f_rr1.wav",
+    "source_sha256": "5546aeae5697f721422aae2a9badbd9a8ce2f2fb724003c4c2ff509a1c35e602",
+    "sha256": "ab7fb73a0960eadbc8b98c033c9c3c951901b458b4910e8da4d18ab70caed844",
+    "root_midi": 28,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-33-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_a2_mp_rr2.wav",
+    "source_sha256": "0f7aa95e5fc03db6478373ccc79c7ff9083cb4cb922baf0471bf0b01ebf4d9ef",
+    "sha256": "6ff1353c993dd680d8262fc29e5674e17698070e75fde99129cccb3866bf4e1f",
+    "root_midi": 33,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-33-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_a2_f_rr2.wav",
+    "source_sha256": "e80a35eeb418f7a4ccc574300d5d58281c719f46f95a6c0c8484d2d3395f05df",
+    "sha256": "c2e8093bba8ef950b0c92ebadc9f13228eb277f6e949b45b6007cac104eca569",
+    "root_midi": 33,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-33-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_a2_mp_rr1.wav",
+    "source_sha256": "1ddbf78fdb97f5f4ccac42618000561ecf9313505e9e35876c0ba00d2a038493",
+    "sha256": "c1f265505ac8340d8deaa27eb934553e8436601316d42be7494926de0ce9ffc8",
+    "root_midi": 33,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-33-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_a2_f_rr1.wav",
+    "source_sha256": "a6383986468556b968be25d1267dda49183b3bd0c2200f7369d6357750db9fef",
+    "sha256": "ed153fa212414958e3ffd1f3f50998ce06e298e367736176b0f5800ba86c2c62",
+    "root_midi": 33,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-38-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_d3_mp_rr2.wav",
+    "source_sha256": "6d15401361ec3d1001607fb85b893e89f7e679b43371484983b62f06a4da94d4",
+    "sha256": "5116d7218493439d3d571ec4ebb10f4dcfb98167b5f23fce66b5b5173be6e87f",
+    "root_midi": 38,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-38-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_d3_f_rr2.wav",
+    "source_sha256": "db288222b01eb9e71040e23b94942af1b707e4292f1f4a8cf43a13268be3a89d",
+    "sha256": "e2a64bf6c68250056e167ef28ec352ff775c4953e7c24cb121ed8d528de4f03b",
+    "root_midi": 38,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-38-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_d3_mp_rr1.wav",
+    "source_sha256": "096f56439f2c0310b6977efa5a65f7e5cb3d45d2362a9d45e5a122e31c83d141",
+    "sha256": "3969cfcdd8538faa1f3c934bb0e4ff965784e2a9c8f0d2ea69e0dfdf27caf745",
+    "root_midi": 38,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-38-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_d3_f_rr1.wav",
+    "source_sha256": "bf00f6e6aec11c6cd2610ad4b549f0358b6e6db2a54a401c526739ff224412bf",
+    "sha256": "547fbc11d1c00c92100af0ed96ac7bdadfcba14314c1be3637501d8381efbe7e",
+    "root_midi": 38,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-43-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_g3_mp_rr2.wav",
+    "source_sha256": "42c14eb669619e1fdf83771fa66193bbc2436730573dc95a352c411fdc04966d",
+    "sha256": "e12bb3f38556bc0868354e8ca1a624525aedd0f5de185f9b4a4678438e5e4e86",
+    "root_midi": 43,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-43-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_g3_f_rr2.wav",
+    "source_sha256": "d0578b31b6942ea3d7333287aa9c2beb56e764c4c5703e102f8703432a63f694",
+    "sha256": "c8dcb0abc2fe6e5763fa38e512ab0e2bdc89a66f52d89d6da5c8e9ab1c5c43a1",
+    "root_midi": 43,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-43-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_g3_mp_rr1.wav",
+    "source_sha256": "f2380679b43f0b393f6400fa1c77e67201e064a79d8e3e3c329b629f24b9f451",
+    "sha256": "c5a07c91d8228d648953bb413d31f0807e2055c94acf2e3d4315b7c336ed8924",
+    "root_midi": 43,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-43-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_g3_f_rr1.wav",
+    "source_sha256": "018376f19d3c68ad4530eebcc0f54dce79dfdd877532abe16fd84472d0c93462",
+    "sha256": "dd1188749befc2828d465856cc68c7c534eb7a8da0ee3bbb99e821f887552e49",
+    "root_midi": 43,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-55-0-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_g4_mp_rr2.wav",
+    "source_sha256": "ff4ae0f4416556f2fc1fda1a5faa77f2c331ab3e4b67979f362f6e55149bc1cd",
+    "sha256": "951732b940e7531b695b6e2369ad1d60e703b9ff0b4735fb01cdf91721d90199",
+    "root_midi": 55,
+    "velocity": 0,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-55-1-1.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_g4_f_rr2.wav",
+    "source_sha256": "9fa00de8a4fc4cce3be661bc50ac17e69e8c6229c5c7410f5e4d2f2fc11bd6a4",
+    "sha256": "cc0322fbb60f33c02f827319f8fb2e2496b64895f5ef161e19ff6e92388c80e0",
+    "root_midi": 55,
+    "velocity": 1,
+    "round_robin": 1,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-55-0-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_g4_mp_rr1.wav",
+    "source_sha256": "3953806829b154772e3cb76af054f4c5427e2e4a4e394f165a3093ed53db116d",
+    "sha256": "17a8b96ae0f76be88c63c95c26a4f4ee63ff480c7932ba1d7febf229f1afe490",
+    "root_midi": 55,
+    "velocity": 0,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  },
+  {
+    "file": "bass-55-1-0.wav",
+    "source": "https://raw.githubusercontent.com/sfzinstruments/karoryfer.black-and-blue-basses/main/Samples/darkblack/reg/darkblack_g4_f_rr1.wav",
+    "source_sha256": "0de908d23acb7018f2f3157b637a0fa62f43eb108a5eb6dd8eafacb975ec2948",
+    "sha256": "47326c2bcff9d32b3902dea560b68206757fdef777131fd0b6aa8724efa94390",
+    "root_midi": 55,
+    "velocity": 1,
+    "round_robin": 0,
+    "conversion": "mono PCM16 44.1k, max2.8sec,40ms end fade; no amp/effects baked"
+  }
+]

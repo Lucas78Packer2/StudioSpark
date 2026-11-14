@@ -1,0 +1,2 @@
+Original StudioSpark mathematical renders. Not recorded acoustic instruments or commercial hardware. No third-party audio.
+Dedicated file for each chromatic key C2 through C6 (MIDI36–84), A4=440Hz. Two libraries, one amplitude-scaled velocity layer, no loops or recorded release articulations. Maximum2.4sec decay. tools/render_keyboard_samples.py reproducibly generates all98WAVs.
