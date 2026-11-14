@@ -119,4 +119,32 @@ class MicSourceTests {
         assertEquals("mid fade ~half", 0.25f, first[2400], 0.03f)
         assertEquals("after fade full level", 0.5f, first[5200], 0.03f)
     }
+
+    /** Milestone 4: a paused track follows the transport silently; others keep playing. */
+    @Test fun pausedTrackIsSilentWhileOthersPlay() {
+        val m = mixer(); val p = Project()
+        val a = Track(name = "A", family = Family.AUDIO, instrumentId = "vox_mic", color = 0); val b = Track(name = "B", family = Family.AUDIO, instrumentId = "vox_mic", color = 0); p.tracks += a; p.tracks += b
+        m.pool.put("dc", ShortArray(ENGINE_SR) { 8192 }, persist = false)
+        fun ts(t: Track, paused: Boolean, pan: Float) = TrackSnap(t.id, t.family, "mic", null, arrayOf(Clip(audioId = "dc", start = 0, length = ENGINE_SR.toLong())), emptyArray(), CharArray(0), 1f, pan, false, false, false, false, true, null, emptyArray(), false, 0.6f, 0, paused = paused)
+        m.snap = MixSnap(p, listOf(ts(a, false, -1f), ts(b, true, 1f))); m.session.metronome = false; m.session.play()
+        val n = 480; val out = FloatArray(2 * n); val input = FloatArray(n)
+        repeat(3) { m.render(out, input, n) }
+        assertEquals("A (left) plays", 0.25f, out[2 * 300], 0.01f); assertEquals("B (right, paused) silent", 0f, out[2 * 300 + 1], 1e-6f)
+        val before = m.session.position
+        m.snap = MixSnap(p, listOf(ts(a, false, -1f), ts(b, false, 1f))); m.render(out, input, n)
+        assertEquals("un-paused B joins at the transport position (no own playhead)", 0.25f, out[2 * 300 + 1], 0.01f); assertEquals(before + n, m.session.position)
+    }
+
+    @Test fun trackPlayTapStartsTransportAndPausesOnlyThatTrack() {
+        val v = ViewModelProvider(compose.activity)[StudioVM::class.java].also { v -> compose.waitUntil(20_000) { v.ready } }
+        compose.runOnIdle { v.addTrack(InstrumentLibrary.stock.first { it.family == Family.KEYS }, "K1"); v.addTrack(InstrumentLibrary.stock.first { it.family == Family.KEYS }, "K2") }
+        val k1 = v.project.tracks[0]; val k2 = v.project.tracks[1]
+        compose.runOnIdle { v.setTrack(k1.id) { paused = true } }
+        compose.runOnIdle { v.trackPlayTap(k1) }
+        assertFalse(v.project.track(k1.id)!!.paused)
+        val started = run { val t0 = System.currentTimeMillis(); while (System.currentTimeMillis() - t0 < 5000 && v.mixer.session.state != TransportState.PLAYING) { org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(50)); Thread.sleep(20) }; v.mixer.session.state == TransportState.PLAYING }
+        assertTrue("track play started the transport", started)
+        assertTrue(v.project.tracks.none { it.recArm })
+        compose.runOnIdle { v.stop() }
+    }
 }

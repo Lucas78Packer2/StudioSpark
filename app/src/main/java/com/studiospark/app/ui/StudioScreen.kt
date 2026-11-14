@@ -108,7 +108,7 @@ object StudioLayout {
     Divider(color = p.inset)
 }
 
-private val HEADER_W = 172.dp
+private val HEADER_W = 188.dp
 private val LANE_H = 68.dp
 
 @Composable private fun EditWindow(vm: StudioVM, vScroll: ScrollState) {
@@ -164,9 +164,9 @@ private fun Modifier.onWidth(f: (Float) -> Unit) = this.then(Modifier.onSizeChan
     val p = LocalPalette.current; val sel = vm.selectedTrackId == t.id; val inst = vm.project.instrument(t.instrumentId)
     Row(Modifier.width(HEADER_W).height(LANE_H).background(if (sel) p.raised else p.header).border(0.5.dp, p.inset).clickable { vm.selectedTrackId = t.id }.semantics { contentDescription = "Track ${t.name}" }) {
         Box(Modifier.width(4.dp).fillMaxHeight().background(Color(t.color)))
-        Column(Modifier.weight(1f).padding(horizontal = 8.dp, vertical = 6.dp)) {
+        Column(Modifier.weight(1f).padding(horizontal = 6.dp, vertical = 6.dp)) {
             Text(t.name, style = Type.bodyStrong, color = p.text, maxLines = 1)
-            Text("${t.family.label} · ${inst.name}", style = Type.label.copy(letterSpacing = 0.sp), color = p.textFaint, maxLines = 1)
+            Text(if (t.paused) "Paused · ${t.family.label}" else "${t.family.label} · ${inst.name}", style = Type.label.copy(letterSpacing = 0.sp), color = if (t.paused) p.solo else p.textFaint, maxLines = 1)
             Spacer(Modifier.weight(1f))
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 StateButton("R", t.recArm, p.rec, size = 24.dp, desc = "Record enable ${t.name}") { vm.toggleArm(t) }
@@ -175,6 +175,12 @@ private fun Modifier.onWidth(f: (Float) -> Unit) = this.then(Modifier.onSizeChan
                 StateButton("M", t.mute, p.mute, size = 24.dp, desc = "Mute ${t.name}") { vm.setTrack(t.id) { mute = !mute } }
             }
         }
+        // per-track play/pause with a full 48 dp touch target
+        val rolling = vm.transport != TransportState.STOPPED; val showPause = rolling && !t.paused
+        Box(Modifier.size(48.dp).align(Alignment.CenterVertically).clip(RoundedCornerShape(6.dp)).clickable { vm.trackPlayTap(t) }
+            .semantics { contentDescription = if (showPause) "Pause ${t.name}" else "Play ${t.name}" }, contentAlignment = Alignment.Center) {
+            Box(Modifier.size(30.dp).clip(RoundedCornerShape(15.dp)).background(if (t.paused) p.inset else if (showPause) p.play.copy(alpha = 0.25f) else p.raised).border(1.dp, if (t.paused) p.solo else if (showPause) p.play else p.line, RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) {
+                Icon(if (showPause) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = if (t.paused) p.solo else if (showPause) p.play else p.text, modifier = Modifier.size(18.dp)) } }
         Meter(vm.meters[t.id] ?: 0f, Modifier.padding(vertical = 6.dp).width(6.dp).fillMaxHeight())
         Spacer(Modifier.width(4.dp))
     }

@@ -13,6 +13,8 @@ class TrackSnap(
     val rigR: RigProcessor? = null,
     /** Mic capture on this track is printed post-rig ("Print processed tone"). */
     val printTone: Boolean = false,
+    /** Per-track pause: follows the transport silently. */
+    val paused: Boolean = false,
 )
 
 class MixSnap(val project: Project, val tracks: List<TrackSnap>) { val anySolo = tracks.any { it.solo } }
@@ -21,6 +23,7 @@ class MixSnap(val project: Project, val tracks: List<TrackSnap>) { val anySolo =
 class Channel(val id: String) {
     /** Consecutive blocks with silent rig input; rigs stop processing once their tails have rung out (saves CPU and battery while idle). */
     var silentBlocks = 0
+    var wasPaused = false
     val voices = ArrayList<Voice>(64)
     val buf = FloatArray(Mixer.MAX_BLOCK); val dry = FloatArray(Mixer.MAX_BLOCK); val post = FloatArray(Mixer.MAX_BLOCK)
     val bufR = FloatArray(Mixer.MAX_BLOCK); val dryR = FloatArray(Mixer.MAX_BLOCK); val vtmp = FloatArray(Mixer.MAX_BLOCK); var silentBlocksR = 0
@@ -154,8 +157,11 @@ class Mixer(val bank: SampleBank, val pool: AudioPool) {
                 val captureThis = capturing && t.armed
                 // Print processed tone: the mic is captured after the rig (what you hear), so it is fed to the rig even when not monitored.
                 val printCap = captureThis && t.micInput && t.printTone
-                if (rolling && !(captureThis)) mixClips(t, pos, buf, n, printedOnly = false)
-                if (rolling) scheduleNotes(t, ch, pos, n)
+                val plays = TrackPlay.sounds(t.paused, rolling)
+                if (t.paused && !ch.wasPaused) { ch.held.values.forEach { it.release() }; ch.held.clear() }   // pausing releases its scheduled notes once
+                ch.wasPaused = t.paused
+                if (plays && !(captureThis)) mixClips(t, pos, buf, n, printedOnly = false)
+                if (plays) scheduleNotes(t, ch, pos, n)
                 // voices
                 val stereo = t.rigR != null; val bufR = ch.bufR; val dryR = ch.dryR
                 if (stereo) for (i in 0 until n) { bufR[i] = buf[i]; dryR[i] = 0f }
@@ -173,7 +179,7 @@ class Mixer(val bank: SampleBank, val pool: AudioPool) {
                     if (ch.silentBlocksR * n < ENGINE_SR * 6) t.rigR!!.process(bufR, n) }
                 if (printCap) { if (stereo) { val tmp = ch.vtmp; for (i in 0 until n) tmp[i] = (buf[i] + bufR[i]) * 0.5f; ch.capture(tmp, n) } else ch.capture(buf, n) }
                 // printed clips already carry their tone: they join after the rig so it is not applied twice
-                if (rolling && !captureThis) { val post = ch.post; for (i in 0 until n) post[i] = 0f
+                if (plays && !captureThis) { val post = ch.post; for (i in 0 until n) post[i] = 0f
                     if (mixClips(t, pos, post, n, printedOnly = true)) for (i in 0 until n) { buf[i] += post[i]; if (stereo) bufR[i] += post[i] } }
                 var g = t.gain; if (t.autoOn && t.automation.isNotEmpty()) g = Shapers.dbToLin(autoDb(t.automation, pos))
                 val audible = !t.mute && (!s.anySolo || t.solo) && ses.previewTakeId == null && !(printCap && !t.monitor)

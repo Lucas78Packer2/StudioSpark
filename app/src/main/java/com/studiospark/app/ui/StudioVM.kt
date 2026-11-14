@@ -156,7 +156,7 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
             val syl = t.lyrics.filter { !it.startsWith("[") }.joinToString(" ").lowercase().split(Regex("[^a-z]+")).filter { it.isNotBlank() }.flatMap { w -> Regex("[aeiouy]+").findAll(w).map { m -> m.value.first().let { c -> if (c == 'y') 'i' else c } }.toList().ifEmpty { listOf('a') } }
             TrackSnap(t.id, t.family, voice, kit, t.clips.map { it.copy() }.toTypedArray(), notes, CharArray(notes.size) { syl.getOrElse(it % maxOf(1, syl.size)) { 'a' } },
                 Shapers.dbToLin(t.volumeDb), t.pan, t.mute, t.solo, t.inputMonitor, t.recArm, micInputFor(t, inst),
-                proc, t.automation.sortedBy { it.at }.toTypedArray(), t.automationOn, inst.brightness, when { t.voiceStyle.contains("Bright") -> 1; t.voiceStyle.contains("Breathy") -> 2; else -> 0 }, procR,
+                proc, t.automation.sortedBy { it.at }.toTypedArray(), t.automationOn, inst.brightness, when { t.voiceStyle.contains("Bright") -> 1; t.voiceStyle.contains("Breathy") -> 2; else -> 0 }, procR, paused = t.paused,
                 printTone = t.printTone && micInputFor(t, inst) && !(inst.source == SoundSource.MIC || t.family == Family.AUDIO || t.family == Family.VOCAL))
         }
         rigs.retain(p.tracks.map { it.id }.toSet())
@@ -203,6 +203,12 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
     // ------------------------------------------------------------------ transport
     fun play() { if (transport == TransportState.STOPPED) { wantTracks(contentTracks()); engine.play() } }
     fun stop() { if (roomRecording) stopRoomRecording(); engine.stopTransport(); stopPreview() }
+    /** Track row play/pause: un-pauses (starting the transport if stopped) or pauses just this track. Never records. */
+    fun trackPlayTap(t: Track) { when (TrackPlay.tap(t.paused, transport != TransportState.STOPPED)) {
+        TrackPlay.Action.UNPAUSE -> setTrack(t.id) { paused = false }
+        TrackPlay.Action.UNPAUSE_AND_START -> { setTrack(t.id) { paused = false }; play() }
+        TrackPlay.Action.START -> play()
+        TrackPlay.Action.PAUSE -> setTrack(t.id) { paused = true } } }
     fun togglePlay() = if (transport == TransportState.STOPPED) play() else stop()
     fun record() {
         if (transport == TransportState.RECORDING || transport == TransportState.COUNT_IN) { stop(); return }
@@ -423,7 +429,7 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
         val uri = cr.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, ContentValues().apply { put(MediaStore.Downloads.DISPLAY_NAME, name); put(MediaStore.Downloads.MIME_TYPE, mime) })!!; cr.openOutputStream(uri)!!.use { it.write(data) }; true }.getOrDefault(false)
     private fun renderMix(): ByteArray {
         val p = ProjectJson.read(ProjectJson.write(project)); val off = Mixer(bank, pool)
-        val snaps = mixer.snap!!.tracks.map { s -> val t = p.track(s.id)!!; TrackSnap(s.id, s.family, s.voice, s.kit, s.clips, s.notes, s.vowels, s.gain, s.pan, s.mute, s.solo, false, false, false, RigProcessor(ENGINE_SR.toFloat(), t.rig), s.automation, s.autoOn, s.brightness, s.voiceStyle, if (s.kit != null) RigProcessor(ENGINE_SR.toFloat(), t.rig) else null) }
+        val snaps = mixer.snap!!.tracks.map { s -> val t = p.track(s.id)!!; TrackSnap(s.id, s.family, s.voice, s.kit, s.clips, s.notes, s.vowels, s.gain, s.pan, s.mute, s.solo, false, false, false, RigProcessor(ENGINE_SR.toFloat(), t.rig), s.automation, s.autoOn, s.brightness, s.voiceStyle, if (s.kit != null) RigProcessor(ENGINE_SR.toFloat(), t.rig) else null, paused = s.paused) }
         off.snap = MixSnap(p, snaps); off.session.metronome = false; off.session.play()
         val len = p.length + ENGINE_SR * 2; val out = ShortArray(len.toInt() * 2); val buf = FloatArray(1024); val silent = FloatArray(512); var pos = 0
         while (pos < len) { off.render(buf, silent, 512); for (i in 0 until 1024) { val k = pos * 2 + i; if (k < out.size) out[k] = (buf[i].coerceIn(-1f, 1f) * 32767f).toInt().toShort() }; pos += 512 }
