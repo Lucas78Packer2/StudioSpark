@@ -1,0 +1,807 @@
+{
+ "format": "studiospark-patterns/1",
+ "grid": 16,
+ "genres": [
+  {
+   "name": "Rock",
+   "tempo": 120,
+   "key": 4,
+   "minor": true,
+   "tags": [
+    "rock",
+    "classic",
+    "indie",
+    "punk",
+    "grunge"
+   ],
+   "drums": [
+    {
+     "name": "Straight 8ths",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X.......X.x.....",
+      "snare": "....X.......X...",
+      "hat": "x.x.x.x.x.x.x.x.",
+      "crash": "X..............................................................."
+     },
+     "fill": {
+      "snare": "....X.......xx..",
+      "tom1": "..............x.",
+      "floor": "...............X",
+      "hat": "x.x.x.x.x.x....."
+     }
+    },
+    {
+     "name": "Floor stomp",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X...X...X...X...",
+      "snare": "....X.......X...",
+      "hat": "x.x.x.x.x.x.x...",
+      "ohat": "..............o."
+     }
+    },
+    {
+     "name": "Half-time",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X.........X.....",
+      "snare": "........X.......",
+      "hat": "x.x.x.x.x.x.x.x."
+     },
+     "fill": {
+      "snare": "....X.......xx..",
+      "tom1": "..............x.",
+      "floor": "...............X",
+      "hat": "x.x.x.x.x.x....."
+     }
+    },
+    {
+     "name": "Ride groove",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X.....x...X.....",
+      "snare": "....X.......X...",
+      "ride": "x.x.x.x.x.x.x.x.",
+      "bell": "X.......X......."
+     }
+    },
+    {
+     "name": "Driving 16ths",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X.....X.X.......",
+      "snare": "....X.......X...",
+      "hat": "XxxxXxxxXxxxXxxx"
+     },
+     "fill": {
+      "snare": "....X.......xx..",
+      "tom1": "..............x.",
+      "floor": "...............X",
+      "hat": "x.x.x.x.x.x....."
+     }
+    }
+   ],
+   "bass": [
+    {
+     "name": "Root eighths",
+     "bars": 4,
+     "rhythm": "R.R.R.R.R.R.R.R.",
+     "prog": [
+      0,
+      0,
+      10,
+      5
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Root-fifth drive",
+     "bars": 4,
+     "rhythm": "R.R.F.R.R.R.F.O.",
+     "prog": [
+      0,
+      3,
+      10,
+      5
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Half-time pulse",
+     "bars": 4,
+     "rhythm": "R-------R---F---",
+     "prog": [
+      0,
+      8,
+      10,
+      0
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Octave bounce",
+     "bars": 4,
+     "rhythm": "R.O.R.O.R.O.R.O.",
+     "prog": [
+      0,
+      5,
+      0,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Driving gallop",
+     "bars": 4,
+     "rhythm": "R.RrR.RrR.RrR.Rr",
+     "prog": [
+      0,
+      10,
+      8,
+      10
+     ],
+     "swing": 0.0
+    }
+   ],
+   "guitar": [
+    {
+     "name": "Power chord 8ths",
+     "bars": 4,
+     "rhythm": "C.C.C.C.C.C.C.C.",
+     "prog": [
+      0,
+      0,
+      10,
+      5
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Open strum",
+     "bars": 4,
+     "rhythm": "M--M--M-M-M-M-M-",
+     "prog": [
+      0,
+      3,
+      10,
+      5
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Palm-muted chug",
+     "bars": 4,
+     "rhythm": "x.x.x.x.C---x.x.",
+     "prog": [
+      0,
+      8,
+      10,
+      0
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Single-note riff",
+     "bars": 4,
+     "rhythm": "r.r.f.r.o.r.f.t.",
+     "prog": [
+      0,
+      5,
+      0,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Sustained power chords",
+     "bars": 4,
+     "rhythm": "C-------C---C---",
+     "prog": [
+      0,
+      10,
+      8,
+      10
+     ],
+     "swing": 0.0
+    }
+   ]
+  },
+  {
+   "name": "Country",
+   "tempo": 110,
+   "key": 7,
+   "minor": false,
+   "tags": [
+    "country",
+    "folk",
+    "americana",
+    "bluegrass",
+    "western",
+    "nashville"
+   ],
+   "drums": [
+    {
+     "name": "Train beat",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X.......X.......",
+      "snare": "gxgxgxgxgxgxgxgx"
+     }
+    },
+    {
+     "name": "Two-step",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X.......X.......",
+      "rim": "....x.......x...",
+      "hat": "x.x.x.x.x.x.x.x."
+     }
+    },
+    {
+     "name": "Shuffle",
+     "bars": 4,
+     "swing": 0.3,
+     "lanes": {
+      "kick": "X.......X.......",
+      "snare": "....X.......X...",
+      "ride": "x.x.x.x.x.x.x.x."
+     },
+     "fill": {
+      "snare": "....X.......xx..",
+      "tom1": "..............x.",
+      "floor": "...............X",
+      "hat": "x.x.x.x.x.x....."
+     }
+    },
+    {
+     "name": "Brush ballad",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X.........x.....",
+      "snare": "....o.......o...",
+      "ride": "o...o...o...o..."
+     }
+    },
+    {
+     "name": "Boom-chick",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X.......X.......",
+      "snare": "....X.......X...",
+      "hat": "x.x.x.x.x.x.x.x.",
+      "pedal": "....x.......x..."
+     }
+    }
+   ],
+   "bass": [
+    {
+     "name": "Root-fifth alternating",
+     "bars": 4,
+     "rhythm": "R.......F.......",
+     "prog": [
+      0,
+      5,
+      7,
+      0
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Walk-up",
+     "bars": 4,
+     "rhythm": "R...F...R.T.F.O.",
+     "prog": [
+      0,
+      0,
+      5,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Two-beat",
+     "bars": 4,
+     "rhythm": "R-..F-..R-..F-..",
+     "prog": [
+      0,
+      9,
+      5,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Train",
+     "bars": 4,
+     "rhythm": "R.F.R.F.R.F.R.F.",
+     "prog": [
+      0,
+      5,
+      0,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Ballad roots",
+     "bars": 4,
+     "rhythm": "R-------F-------",
+     "prog": [
+      0,
+      7,
+      9,
+      5
+     ],
+     "swing": 0.0
+    }
+   ],
+   "guitar": [
+    {
+     "name": "Boom-chick strum",
+     "bars": 4,
+     "rhythm": "r...M...f...M...",
+     "prog": [
+      0,
+      5,
+      7,
+      0
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Train strum",
+     "bars": 4,
+     "rhythm": "M.x.M.x.M.x.M.x.",
+     "prog": [
+      0,
+      0,
+      5,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Chicken pickin'",
+     "bars": 4,
+     "rhythm": "r.o.f.r.t.f.o.r.",
+     "prog": [
+      0,
+      9,
+      5,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Ballad arpeggio",
+     "bars": 4,
+     "rhythm": "r.f.o.t.o.f.r.f.",
+     "prog": [
+      0,
+      5,
+      0,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Front-porch strum",
+     "bars": 4,
+     "rhythm": "M---M-M-M---M-M-",
+     "prog": [
+      0,
+      7,
+      9,
+      5
+     ],
+     "swing": 0.0
+    }
+   ]
+  },
+  {
+   "name": "Metal",
+   "tempo": 140,
+   "key": 4,
+   "minor": true,
+   "tags": [
+    "metal",
+    "heavy",
+    "thrash",
+    "djent",
+    "metalcore",
+    "doom",
+    "hardcore"
+   ],
+   "drums": [
+    {
+     "name": "Double-kick 16ths",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "xxxxxxxxxxxxxxxx",
+      "snare": "....X.......X...",
+      "hat": "x.x.x.x.x.x.x.x.",
+      "crash": "X..............................................................."
+     }
+    },
+    {
+     "name": "Thrash skank",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X.x.X.x.X.x.X.x.",
+      "snare": "..X...X...X...X.",
+      "hat": "x.x.x.x.x.x.x.x."
+     }
+    },
+    {
+     "name": "Half-time breakdown",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X..X..X...X..X..",
+      "snare": "........X.......",
+      "china": "X...X...X...X..."
+     }
+    },
+    {
+     "name": "Gallop kicks",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X.xxX.xxX.xxX.xx",
+      "snare": "....X.......X...",
+      "hat": "x.x.x.x.x.x.x.x."
+     },
+     "fill": {
+      "snare": "....X.......xx..",
+      "tom1": "..............x.",
+      "floor": "...............X",
+      "hat": "x.x.x.x.x.x....."
+     }
+    },
+    {
+     "name": "Blast beat",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "x.x.x.x.x.x.x.x.",
+      "snare": ".x.x.x.x.x.x.x.x",
+      "ride": "x.x.x.x.x.x.x.x."
+     }
+    }
+   ],
+   "bass": [
+    {
+     "name": "16th chug",
+     "bars": 4,
+     "rhythm": "RrRrRrRrRrRrRrRr",
+     "prog": [
+      0,
+      0,
+      1,
+      0
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Skank eighths",
+     "bars": 4,
+     "rhythm": "R.R.R.R.R.R.R.R.",
+     "prog": [
+      0,
+      3,
+      1,
+      0
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Breakdown",
+     "bars": 4,
+     "rhythm": "R..R..R...R..R..",
+     "prog": [
+      0,
+      0,
+      10,
+      8
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Thrash gallop",
+     "bars": 4,
+     "rhythm": "R.RrR.RrR.RrR.Rr",
+     "prog": [
+      0,
+      0,
+      3,
+      5
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Octave pulse",
+     "bars": 4,
+     "rhythm": "R.O.R.O.R.O.R.O.",
+     "prog": [
+      0,
+      1,
+      0,
+      10
+     ],
+     "swing": 0.0
+    }
+   ],
+   "guitar": [
+    {
+     "name": "Palm-muted 16ths",
+     "bars": 4,
+     "rhythm": "xxxxxxxxxxxxC-C-",
+     "prog": [
+      0,
+      0,
+      1,
+      0
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Skank power chords",
+     "bars": 4,
+     "rhythm": "C.C.C.C.C.C.C.C.",
+     "prog": [
+      0,
+      3,
+      1,
+      0
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Breakdown chugs",
+     "bars": 4,
+     "rhythm": "x..x..x...x..C--",
+     "prog": [
+      0,
+      0,
+      10,
+      8
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Gallop riff",
+     "bars": 4,
+     "rhythm": "C.xxC.xxC.xxC.xx",
+     "prog": [
+      0,
+      0,
+      3,
+      5
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Tremolo riff",
+     "bars": 4,
+     "rhythm": "rrrrffffoooorrrr",
+     "prog": [
+      0,
+      1,
+      0,
+      10
+     ],
+     "swing": 0.0
+    }
+   ]
+  },
+  {
+   "name": "Pop",
+   "tempo": 100,
+   "key": 0,
+   "minor": false,
+   "tags": [
+    "pop",
+    "dance",
+    "disco",
+    "ballad",
+    "synthpop",
+    "edm"
+   ],
+   "drums": [
+    {
+     "name": "Pop backbeat",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X.....X.X.......",
+      "snare": "....X.......X...",
+      "hat": "x.x.x.x.x.x.x.x."
+     },
+     "fill": {
+      "snare": "....X.......xx..",
+      "tom1": "..............x.",
+      "floor": "...............X",
+      "hat": "x.x.x.x.x.x....."
+     }
+    },
+    {
+     "name": "Dance floor",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X...X...X...X...",
+      "snare": "....X.......X...",
+      "ohat": "..o...o...o...o."
+     }
+    },
+    {
+     "name": "Half-time ballad",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X.......x.X.....",
+      "snare": "........X.......",
+      "hat": "x.x.x.x.x.x.x.x."
+     }
+    },
+    {
+     "name": "Syncopated 16ths",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X..X..X...X.....",
+      "snare": "....X..g.g..X...",
+      "hat": "xoxoxoxoxoxoxoxo"
+     }
+    },
+    {
+     "name": "Disco",
+     "bars": 4,
+     "swing": 0.0,
+     "lanes": {
+      "kick": "X...X...X...X...",
+      "snare": "....X.......X...",
+      "hat": "x.x.x.x.x.x.x.x.",
+      "ohat": "..o...o...o...o."
+     }
+    }
+   ],
+   "bass": [
+    {
+     "name": "Eighth pulse",
+     "bars": 4,
+     "rhythm": "R.R.R.R.R.R.R.R.",
+     "prog": [
+      0,
+      7,
+      9,
+      5
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Syncopated",
+     "bars": 4,
+     "rhythm": "R..R..R.R..R..F.",
+     "prog": [
+      9,
+      5,
+      0,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Octave disco",
+     "bars": 4,
+     "rhythm": "R.O.R.O.R.O.R.O.",
+     "prog": [
+      0,
+      9,
+      5,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Ballad half notes",
+     "bars": 4,
+     "rhythm": "R-------F-------",
+     "prog": [
+      0,
+      5,
+      9,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Melodic",
+     "bars": 4,
+     "rhythm": "R...T...F...O...",
+     "prog": [
+      5,
+      7,
+      0,
+      9
+     ],
+     "swing": 0.0
+    }
+   ],
+   "guitar": [
+    {
+     "name": "Eighth strum",
+     "bars": 4,
+     "rhythm": "M.M.M.M.M.M.M.M.",
+     "prog": [
+      0,
+      7,
+      9,
+      5
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Offbeat skank",
+     "bars": 4,
+     "rhythm": "..M...M...M...M.",
+     "prog": [
+      9,
+      5,
+      0,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Arpeggio",
+     "bars": 4,
+     "rhythm": "r.t.f.o.r.t.f.o.",
+     "prog": [
+      0,
+      9,
+      5,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Muted funk",
+     "bars": 4,
+     "rhythm": "x.M.x.xMx.M.x.xM",
+     "prog": [
+      0,
+      5,
+      9,
+      7
+     ],
+     "swing": 0.0
+    },
+    {
+     "name": "Whole-note chords",
+     "bars": 4,
+     "rhythm": "M---------------",
+     "prog": [
+      5,
+      7,
+      0,
+      9
+     ],
+     "swing": 0.0
+    }
+   ]
+  }
+ ]
+}

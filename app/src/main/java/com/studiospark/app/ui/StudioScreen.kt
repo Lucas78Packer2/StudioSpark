@@ -80,6 +80,9 @@ object StudioLayout {
             listOf(false to "Edit", true to "Mix").forEach { (m, l) -> Box(Modifier.background(if (vm.mixWindow == m) p.accent else p.raised).clickable { vm.mixWindow = m }.padding(horizontal = 12.dp, vertical = 7.dp)) { Text(l, style = Type.small, color = if (vm.mixWindow == m) Color.Black else p.text) } } }
         ToolButton("Upload", icon = Icons.Default.Upload) { vm.openUpload("import", null) }
         ToolButton("Track", icon = Icons.Default.Add) { vm.galleryOpen = true }
+        var patternsOpen by remember { mutableStateOf(false) }
+        ToolButton("Patterns", icon = Icons.Default.AutoAwesome) { patternsOpen = true }
+        if (patternsOpen) PatternDialog(vm) { patternsOpen = false }
         if (!vm.mixWindow) {
             IconBtn(Icons.Default.ZoomOut, "Zoom out") { vm.zoom = (vm.zoom / 1.4f).coerceAtLeast(0.15f) }
             IconBtn(Icons.Default.ZoomIn, "Zoom in") { vm.zoom = (vm.zoom * 1.4f).coerceAtMost(8f) }

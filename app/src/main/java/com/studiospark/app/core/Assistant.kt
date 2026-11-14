@@ -59,4 +59,24 @@ object Assistant {
     }
 
     fun syllables(line: String): Int = line.lowercase().split(Regex("[^a-z']+")).filter { it.isNotBlank() }.sumOf { w -> Regex("[aeiouy]+").findAll(w).count().coerceAtLeast(1) - (if (w.endsWith("e") && w.length > 2 && Regex("[aeiouy]+").findAll(w).count() > 1) 1 else 0) }
+
+    // ------------------------------------------------------------ pattern variation rules (genre packs)
+    /**
+     * Variation of a written pattern so repeats and Shuffle never sound copy-pasted: velocity humanising (±[humanize]),
+     * snare ghost notes on empty 16ths (drums), a tom/snare fill in the last beat with a crash on the downbeat (drums),
+     * and occasional octave pops on bass. Deterministic per [seed].
+     */
+    fun vary(notes: List<MidiNote>, drums: Boolean, seed: Int, step16: Long, bars: Int, humanize: Int = 8, ghosts: Float = 0.12f, fill: Boolean = true): List<MidiNote> {
+        val r = Random(seed); val out = notes.map { it.copy(velocity = (it.velocity + r.nextInt(-humanize, humanize + 1)).coerceIn(20, 127)) }.toMutableList()
+        val barLen = 16 * step16; val end = bars * barLen
+        if (drums) {
+            val snareAt = out.filter { it.pitch == 38 }.map { it.start / step16 }.toSet(); val kickAt = out.filter { it.pitch == 36 }.map { it.start / step16 }.toSet()
+            for (s in 0L until bars * 16L) if (s % 2 == 1L && s !in snareAt && s !in kickAt && r.nextFloat() < ghosts) out += MidiNote(38, s * step16, step16, 30 + r.nextInt(14))
+            if (fill && bars >= 2) { val f0 = end - 4 * step16; out.removeAll { it.start >= f0 && it.pitch != 36 }
+                val run = listOf(38, 38, 50, 43).let { if (r.nextBoolean()) it else listOf(50, 47, 43, 43) }
+                run.forEachIndexed { i, m -> out += MidiNote(m, f0 + i * step16, step16, 90 + i * 8) } }
+            if (out.none { it.pitch == 49 && it.start == 0L } && r.nextFloat() < 0.7f) out += MidiNote(49, 0, step16, 110)
+        } else for (i in out.indices) { val n = out[i]; if (n.velocity > 90 && n.pitch < 52 && r.nextFloat() < 0.08f) out[i] = n.copy(pitch = n.pitch + 12) }
+        return out.sortedBy { it.start }
+    }
 }

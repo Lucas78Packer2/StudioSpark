@@ -421,6 +421,56 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
         setTrack(t.id) { lyrics.addAll(Assistant.lyrics(prompt, genre)); voiceStyle = "$genre · warm"; val k = Assistant.Key(9, true); val lines = lyrics.filter { !it.startsWith("[") }; var at = 0L; val spb = project.samplesPerBeat
             for (line in lines.take(8)) { val syl = Assistant.syllables(line).coerceIn(2, 10); val mel = Assistant.melody(k, 1, spb, line.hashCode()).take(syl); var tt = at; for (n in mel) { notes.add(n.copy(start = tt, length = spb / 2 - 200, pitch = n.pitch.coerceIn(57, 72))); tt += spb / 2 }; at += project.samplesPerBar * 2 } } } }
 
+    // ------------------------------------------------------------------ genre packs + offline AI patterns (loaded only when first opened)
+    private var patternCache: List<Genre>? = null
+    val patternsLoaded get() = patternCache != null
+    fun patternLibrary(): List<Genre> = patternCache ?: runCatching { PatternLib.parse(getApplication<Application>().assets.open(PatternLib.ASSET).use { it.readBytes().decodeToString() }) }
+        .onFailure { message = "Pattern packs could not be loaded: ${it.message}" }.getOrElse { emptyList() }.also { patternCache = it }
+    var patternPick by mutableStateOf(PatternPick())
+    /** Key set by a prompt ("... in A minor"); null = the genre's own key. */
+    var patternKey by mutableStateOf<Assistant.Key?>(null)
+    var patternPromptInfo by mutableStateOf<String?>(null)
+    fun kitPieces(t: Track): Set<Int> = kitOf(t).pieces.filter { it.sounding }.map { it.midi }.toSet()
+
+    /** Notes for one part of a genre pattern at the project tempo (16th = a quarter beat). */
+    fun patternNotes(g: Genre, part: PatternPart, index: Int, seed: Int, vary: Boolean, kit: Set<Int>? = null): List<MidiNote> {
+        val step16 = project.samplesPerBeat / 4; val key = patternKey ?: g.key
+        val raw = when (part) { PatternPart.BASS -> PatternGen.line(g.bass[index], key, part, step16); PatternPart.GUITAR -> PatternGen.line(g.guitar[index], key, part, step16); else -> PatternGen.drums(g.drums[index], step16, kit) }
+        val bars = PatternGen.bars(g, part, index)
+        val v = if (vary) Assistant.vary(raw, part == PatternPart.DRUMS, seed, step16, bars) else raw
+        return if (part == PatternPart.DRUMS) PatternGen.fitKit(v, kit) else v
+    }
+    /** Studio placement target: the selected track if it is the right family, else the first such track, else a new one. */
+    private fun studioTarget(part: PatternPart): Track = when (part) {
+        PatternPart.DRUMS -> ensureDrumTrack()
+        PatternPart.BASS -> selectedTrack()?.takeIf { it.family == Family.BASS } ?: project.tracks.firstOrNull { it.family == Family.BASS } ?: ensureStringTrack(true)
+        else -> selectedTrack()?.takeIf { it.family == Family.GUITAR } ?: project.tracks.firstOrNull { it.family == Family.GUITAR } ?: ensureStringTrack(false) }
+    /**
+     * Writes the picked pattern(s) as MIDI notes from [at] (bar start), replacing only notes inside the pattern span.
+     * A backing set places drums, bass and guitar with the same set number. Returns the tracks written.
+     */
+    fun placePattern(pick: PatternPick = patternPick, at: Long = (position / project.samplesPerBar) * project.samplesPerBar, target: (PatternPart) -> Track = ::studioTarget): List<Track> {
+        val g = patternLibrary().getOrNull(pick.genre) ?: return emptyList()
+        val parts = if (pick.part == PatternPart.BACKING) listOf(PatternPart.DRUMS, PatternPart.BASS, PatternPart.GUITAR) else listOf(pick.part)
+        val sel = selectedTrackId
+        val jobs = parts.map { part -> val t = target(part); Triple(part, t, patternNotes(g, part, pick.index, pick.seed + part.ordinal, pick.vary, if (part == PatternPart.DRUMS) kitPieces(t) else null)) }
+        val step16 = project.samplesPerBeat / 4
+        edit { for ((part, t, notes) in jobs) { val tr = track(t.id) ?: continue; val len = PatternGen.lengthOf(PatternGen.bars(g, part, pick.index), step16)
+            tr.notes.removeAll { it.start >= at && it.start < at + len }; tr.notes.addAll(notes.map { it.copy(start = it.start + at) }); tr.notes.sortBy { it.start } } }
+        if (pick.part == PatternPart.BACKING) selectedTrackId = sel ?: jobs.first().second.id
+        wantTracks(jobs.map { it.second.id })
+        message = "${g.name} · ${if (pick.part == PatternPart.BACKING) "backing set ${pick.index + 1}" else "${pick.part.label} \"${patternName(g, pick.part, pick.index)}\""} placed at bar ${at / project.samplesPerBar + 1} (${(patternKey ?: g.key)}, ${project.tempo.toInt()} BPM)"
+        return jobs.map { it.second }
+    }
+    fun patternName(g: Genre, part: PatternPart, i: Int) = when (part) { PatternPart.BASS -> g.bass[i].name; PatternPart.GUITAR -> g.guitar[i].name; PatternPart.DRUMS -> g.drums[i].name; PatternPart.BACKING -> "${g.drums[i].name} + ${g.bass[i].name}" }
+    /** Offline prompt ("rock beat 120", "funk bass in E minor"): sets genre, part, tempo and key, then returns the pick (not placed). */
+    fun applyPrompt(text: String): PatternPick? { val lib = patternLibrary(); val r = PatternPrompt.parse(text, lib) ?: return null
+        r.tempo?.let { setTempo(it) }; patternKey = r.key
+        val pick = PatternPick(lib.indexOf(r.genre), r.part, r.index ?: (text.hashCode() and 0x7fffffff) % 5, (text.hashCode() and 0x7fffff) + 1, true)
+        patternPick = pick
+        patternPromptInfo = "${r.genre.name} · ${r.part.label}${r.tempo?.let { " · ${it.toInt()} BPM" } ?: ""}${r.key?.let { " · $it" } ?: ""}"
+        return pick }
+
     // ------------------------------------------------------------------ export
     fun exportMix() { viewModelScope.launch { message = "Bouncing mix…"; val bytes = withContext(Dispatchers.Default) { renderMix() }
         val ok = withContext(Dispatchers.IO) { saveDownload("${project.name.replace(Regex("[^A-Za-z0-9 _-]"), "")}-mix.wav", "audio/wav", bytes) }; message = if (ok) "Mix bounced to Downloads" else "Could not save the bounce" } }
