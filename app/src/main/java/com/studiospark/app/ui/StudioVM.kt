@@ -80,6 +80,8 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
     fun chooseCompactMixer(on: Boolean) { compactMixer = on; prefs.edit().putBoolean("compactMixer", on).apply() }
     var surfaceOverride by mutableStateOf<Surface?>(null)
     var message by mutableStateOf<String?>(null)
+    /** Persistent on-screen mic problem while a mic track is armed/monitored, recording, or the tuner listens; null when input is fine. */
+    var micError by mutableStateOf<String?>(null)
     var settingsOpen by mutableStateOf(false)
     var galleryOpen by mutableStateOf(false)
     var workbench by mutableStateOf<String?>(null) // "guitar" | "drums"
@@ -165,6 +167,8 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
     private var saveJob: Job? = null
     private fun scheduleSave() { saveJob?.cancel(); saveJob = viewModelScope.launch { delay(800); val s = ProjectJson.write(project); withContext(Dispatchers.IO) { File(dir, "project.json.tmp").apply { writeText(s); renameTo(File(dir, "project.json")) } } } }
 
+    companion object { fun micErrorText(err: String?): String? = err?.let { if (it.startsWith("Mic is open")) it else "Mic recording failed: $it" } }
+
     private suspend fun ticker() {
         var lastPos = -1L; var recStart = 0L
         while (true) {
@@ -178,6 +182,7 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
             }
             recElapsed = if (st == TransportState.RECORDING) System.currentTimeMillis() - recStart else if (roomRecording) System.currentTimeMillis() - roomRecStart else recElapsed
             if (previewingTakeId != null && mixer.previewAudio == null) { previewingTakeId = null; mixer.session.listen(null) }
+            val me = micErrorText(engine.inputError); if (micError != me) micError = me
             if (tunerOn && engine.inputActive) { val buf = FloatArray(2048); val w = engine.tunerWrite; for (i in 0 until 2048) buf[i] = engine.tunerBuf[(w - 2048 + i + 4096) % 4096]
                 tuner = withContext(Dispatchers.Default) { Tuner.detect(buf, 2048, ENGINE_SR.toFloat()) } ?: tuner }
             delay(if (active || tunerOn) 33 else 200)

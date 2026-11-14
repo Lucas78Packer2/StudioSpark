@@ -54,6 +54,9 @@ import kotlinx.coroutines.delay
         if (vm.galleryOpen) InstrumentGallery(vm)
         vm.micGate?.let { act -> MicConfirmDialog(onYes = { vm.micGate = null; act() }, onNo = { vm.micGate = null }) }
         PendingTakesTray(vm, Modifier.align(Alignment.BottomCenter))
+        vm.micError?.let { err ->
+            Box(Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 16.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xF0B3261E)).padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Text(err, style = Type.body, color = Color.White) } }
         vm.message?.let { msg -> LaunchedEffect(msg) { delay(3200); if (vm.message == msg) vm.message = null }
             Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp, start = 24.dp, end = 24.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xF0202326)).border(1.dp, p.line, RoundedCornerShape(6.dp)).clickable { vm.message = null }.padding(horizontal = 16.dp, vertical = 10.dp)) {
                 Text(msg, style = Type.body, color = Color.White) } }

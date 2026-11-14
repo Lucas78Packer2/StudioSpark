@@ -126,7 +126,7 @@ private fun Modifier.onWidth(f: (Float) -> Unit) = this.then(Modifier.onSizeChan
         if (proj.punchOut > proj.punchIn) { val x0 = proj.punchIn / spb * pxPerBeat - scrollX; val x1 = proj.punchOut / spb * pxPerBeat - scrollX; drawRect(p.rec.copy(alpha = if (vm.mixer.session.mode == RecordMode.PUNCH) 0.5f else 0.15f), Offset(x0, size.height - 6f), Size(x1 - x0, 6f)) }
         for (b in firstBeat..lastBeat) { val x = b * pxPerBeat - scrollX; val isBar = (b % beatsPerBar.toInt().coerceAtLeast(1)) == 0
             drawLine(if (isBar) p.textDim else p.textFaint.copy(alpha = 0.5f), Offset(x, if (isBar) 8f else size.height * 0.6f), Offset(x, size.height), 1f)
-            if (isBar && (pxPerBeat * beatsPerBar > 40 || (b / beatsPerBar.toInt()) % 4 == 0)) drawText(tm, "${b / beatsPerBar.toInt() + 1}", Offset(x + 4f, 6f), Type.mono.copy(color = p.textDim)) }
+            if (isBar && x + 4f < size.width && (pxPerBeat * beatsPerBar > 40 || (b / beatsPerBar.toInt()) % 4 == 0)) drawText(tm, "${b / beatsPerBar.toInt() + 1}", Offset(x + 4f, 6f), Type.mono.copy(color = p.textDim)) }
         val ph = vm.position / spb * pxPerBeat - scrollX
         drawPath(Path().apply { moveTo(ph - 7f, 0f); lineTo(ph + 7f, 0f); lineTo(ph, 12f); close() }, p.accent)
     }

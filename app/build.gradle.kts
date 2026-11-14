@@ -9,8 +9,8 @@ android {
         applicationId = "com.studiospark.app"
         minSdk = 31
         targetSdk = 34
-        versionCode = 2
-        versionName = "2.0.1-pro-debug"
+        versionCode = 4
+        versionName = "2.0.3-pro-debug"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     androidResources { noCompress += listOf("onnx") }

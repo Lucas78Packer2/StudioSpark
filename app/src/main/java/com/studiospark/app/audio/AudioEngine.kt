@@ -6,6 +6,7 @@ import android.media.*
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
+import android.util.Log
 import com.studiospark.app.core.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
@@ -19,6 +20,8 @@ data class InputDevice(val id: Int, val name: String, val type: Int, val externa
  * Real-time audio I/O. Output runs on a dedicated URGENT_AUDIO thread writing to a low-latency AudioTrack; input runs on its own
  * thread into a lock-free ring. All graph state is mutated on the audio thread via [post], so the UI thread never blocks it.
  */
+const val MIC_TAG = "StudioSparkMic"
+
 class AudioEngine(private val ctx: Context, val mixer: Mixer) {
     private val am = ctx.getSystemService(AudioManager::class.java)
     private val commands = ConcurrentLinkedQueue<() -> Unit>()
@@ -88,32 +91,25 @@ class AudioEngine(private val ctx: Context, val mixer: Mixer) {
         inputPeak = kotlin.math.max(pk, inputPeak * 0.9f)
     }
 
-    @SuppressLint("MissingPermission")
+    /** Microphone open/fallback/retry state; [micFactory] is swappable for tests. */
+    var micFactory: MicRecorderFactory = AndroidMicRecorder.factory(am)
+    private val mic by lazy { MicSession(ENGINE_SR, { c, d, n -> micFactory(c, d, n) }, { Log.w(MIC_TAG, it) }) }
+    /** Why mic input is not working (open failure, stream error, or all-silence warning); null while it is fine or not wanted. */
+    val inputError: String? get() = if (!wantInput) null else mic.error ?: mic.warning
+
     private fun inputLoop() {
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
-        var rec: AudioRecord? = null; var device: Int? = null
-        val buf = FloatArray(96)
+        val sink: (FloatArray, Int) -> Unit = { buf, got ->
+            var w = wIdx.get(); for (i in 0 until got) { ring[w] = buf[i]; w = (w + 1) % ring.size; tunerBuf[tunerWrite] = buf[i]; tunerWrite = (tunerWrite + 1) % tunerBuf.size }; wIdx.set(w) }
         while (running) {
             val need = wantInput && ctx.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            if (need && (rec == null || device != preferredInput)) {
-                rec?.run { runCatching { stop() }; release() }
-                rec = runCatching {
-                    val min = AudioRecord.getMinBufferSize(ENGINE_SR, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
-                    AudioRecord.Builder().setAudioSource(MediaRecorder.AudioSource.VOICE_PERFORMANCE)
-                        .setAudioFormat(AudioFormat.Builder().setSampleRate(ENGINE_SR).setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setChannelMask(AudioFormat.CHANNEL_IN_MONO).build())
-                        .setBufferSizeInBytes(maxOf(min, 96 * 4 * 4)).build().also { r ->
-                            preferredInput?.let { id -> am.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { it.id == id }?.let { r.preferredDevice = it } }
-                            r.startRecording(); inputLatencyMs = maxOf(min / 4, 96) * 1000f / ENGINE_SR }
-                }.getOrNull()
-                device = preferredInput; inputActive = rec != null
-            } else if (!need && rec != null) { val old = rec; runCatching { old.stop() }; old.release(); rec = null; inputActive = false; inputPeak = 0f }
-            val r = rec
-            if (r == null) { Thread.sleep(20); continue }
-            val got = r.read(buf, 0, buf.size, AudioRecord.READ_BLOCKING)
-            if (got <= 0) { Thread.sleep(2); continue }
-            var w = wIdx.get(); for (i in 0 until got) { ring[w] = buf[i]; w = (w + 1) % ring.size; tunerBuf[tunerWrite] = buf[i]; tunerWrite = (tunerWrite + 1) % tunerBuf.size }; wIdx.set(w)
+            val wasActive = mic.active
+            val got = runCatching { mic.tick(need, preferredInput, android.os.SystemClock.elapsedRealtime(), sink) }.onFailure { Log.w(MIC_TAG, "input loop error", it) }.getOrDefault(false)
+            inputActive = mic.active; if (mic.active) inputLatencyMs = mic.latencyMs
+            if (wasActive && !mic.active) inputPeak = 0f
+            if (!got) Thread.sleep(if (mic.active) 2 else 20)
         }
-        rec?.run { runCatching { stop() }; release() }
+        mic.close(); inputActive = false
     }
 
     fun inputDevices(): List<InputDevice> = am.getDevices(AudioManager.GET_DEVICES_INPUTS).filter { it.isSource }.map { d ->
