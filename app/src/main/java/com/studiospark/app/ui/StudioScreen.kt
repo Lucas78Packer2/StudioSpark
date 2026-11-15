@@ -40,7 +40,8 @@ import kotlin.math.*
         if (!vm.chromeHidden) MasterBoard(vm)
         vm.selectedTrack()?.let { TrackDetail(vm, it) } ?: if (vm.project.tracks.isEmpty())
             EmptyState("Basic studio — nothing loaded yet", "Add a guitar, bass, drum kit, keys, a mic track, or amps and pedals when you need them. Your saved kits, guitars and basses are in the list too.",
-                action = { PrimaryButton("Add instrument or gear", icon = Icons.Default.Add) { vm.galleryOpen = true } })
+                action = { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { PrimaryButton("Add instrument or gear", icon = Icons.Default.Add) { vm.galleryOpen = true }
+                    if (vm.hasLastSession) ToolButton("Open last session", icon = Icons.Default.History) { vm.openLastSession() } } })
         else EmptyState("No track selected", "Tap a track header to select it.")
         Spacer(Modifier.height(80.dp))
     }

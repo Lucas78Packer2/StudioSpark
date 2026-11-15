@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
     private fun openFromIntent(i: android.content.Intent?) {
         if (!BuildConfig.DEBUG) return
         when (val o = i?.getStringExtra("open") ?: return) {
-            "STUDIO", "STEMS", "RECORD", "JAM", "BASS" -> { vm.closeUpload(); vm.workbench = null; vm.screen = com.studiospark.app.ui.Screen.valueOf(o) }
+            "STUDIO", "IMPORT", "SONGWRITER", "EAR", "STEMS", "RECORD", "JAM", "BASS" -> { vm.closeUpload(); vm.workbench = null; vm.screen = com.studiospark.app.ui.Screen.valueOf(o) }
             "MIX" -> { vm.screen = com.studiospark.app.ui.Screen.STUDIO; vm.mixWindow = true }
             "RIG" -> { vm.screen = com.studiospark.app.ui.Screen.STUDIO; vm.openUpload("rig") }
             "UPLOAD" -> vm.openUpload("import", null)

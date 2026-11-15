@@ -44,6 +44,9 @@ import kotlinx.coroutines.delay
                     Screen.GUITAR -> InstrumentBuilderScreen(vm, landscape, bass = false)
                     Screen.BASS -> InstrumentBuilderScreen(vm, landscape, bass = true)
                     Screen.STEMS -> StemsScreen(vm)
+                    Screen.IMPORT -> ImportScreen(vm)
+                    Screen.SONGWRITER -> SongwriterScreen(vm)
+                    Screen.EAR -> EarTrainingSlot(vm)
                     Screen.RECORD -> RecordScreen(vm)
                     Screen.JAM -> JamRoom(vm, landscape)
                 }
@@ -73,6 +76,7 @@ import kotlinx.coroutines.delay
             Text("StudioSpark", style = Type.label, color = p.accent)
             Text(vm.project.name, style = Type.bodyStrong, color = p.text, maxLines = 1)
         }
+        IconBtn(Icons.Default.Save, "Save session") { vm.saveSession() }
         IconBtn(Icons.Default.Undo, "Undo", vm.canUndo) { vm.undo() }
         IconBtn(Icons.Default.Redo, "Redo", vm.canRedo) { vm.redo() }
         IconBtn(if (vm.chromeHidden) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff, if (vm.chromeHidden) "Show controls" else "Hide controls") { vm.setHidden(!vm.chromeHidden) }
@@ -143,6 +147,7 @@ import kotlinx.coroutines.delay
             TempoControl(vm)
             Dropdown("", "${vm.project.sigNum}/${vm.project.sigDen}", listOf(4 to 4, 3 to 4, 6 to 8, 5 to 4, 7 to 8, 12 to 8, 2 to 4), { "${it.first}/${it.second}" }) { vm.setSig(it.first, it.second) }
         }
+        IconBtn(Icons.Default.Save, "Save session") { vm.saveSession() }
         IconBtn(Icons.Default.Undo, "Undo", vm.canUndo) { vm.undo() }
         IconBtn(Icons.Default.Redo, "Redo", vm.canRedo) { vm.redo() }
         IconBtn(if (vm.chromeHidden) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff, if (vm.chromeHidden) "Show controls" else "Hide controls") { vm.setHidden(!vm.chromeHidden) }

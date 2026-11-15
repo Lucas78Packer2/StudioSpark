@@ -17,7 +17,7 @@ import kotlinx.coroutines.*
 import java.io.File
 import java.util.Calendar
 
-enum class Screen(val label: String) { STUDIO("Studio"), DRUMS("Drum Kit"), GUITAR("Guitar"), BASS("Bass"), STEMS("Stems"), RECORD("Record"), JAM("Jam Room") }
+enum class Screen(val label: String) { STUDIO("Studio"), IMPORT("Import"), SONGWRITER("Songwriter"), EAR("Ear Training"), DRUMS("Drum Kit"), GUITAR("Guitar"), BASS("Bass"), STEMS("Stems"), RECORD("Record"), JAM("Jam Room") }
 enum class UploadStep(val label: String) { SOURCE("Source"), RIGHTS("Rights"), INSTRUMENT("Instrument"), TONE("Tone"), PLACE("Place") }
 
 /** State of the upload / import / place-audio flow. The AmpliTube-style rig lives in its TONE step. */
@@ -176,7 +176,12 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
         voice in setOf("sub_bass", "saw_lead", "warm_pad", "square_arp", "pluck", "brass_synth", "wt_glass", "wt_vowel", "fm_ep", "fm_bell", "fm_bass", "organ") -> null; else -> voice }
 
     private var saveJob: Job? = null
-    private fun scheduleSave() { saveJob?.cancel(); saveJob = viewModelScope.launch { delay(800); val s = ProjectJson.write(project); withContext(Dispatchers.IO) { File(dir, "project.json.tmp").apply { writeText(s); renameTo(File(dir, "project.json")) } } } }
+    /** Crash-safety autosave of the working session (2.2.0: autosave.json). Never read at launch and never touches the
+     *  user's explicit save (last-session.json) or the 2.1.0 project.json. */
+    private fun scheduleSave() { saveJob?.cancel(); saveJob = viewModelScope.launch { delay(800); val s = ProjectJson.write(project); withContext(Dispatchers.IO) { File(dir, "autosave.json.tmp").apply { writeText(s); renameTo(File(dir, "autosave.json")) } } } }
+    /** Explicit user save: the ONLY writer of last-session.json. */
+    fun saveSession() { val s = ProjectJson.write(project)
+        viewModelScope.launch { withContext(Dispatchers.IO) { File(dir, "last-session.json.tmp").apply { writeText(s); renameTo(File(dir, "last-session.json")) } }; message = "Session saved" } }
 
     companion object { fun micErrorText(err: String?): String? = err?.let { if (it.startsWith("Mic is open")) it else "Mic recording failed: $it" } }
 
@@ -392,6 +397,63 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
     fun closeUpload() { upload?.let { u -> u.targetTrackId?.let { id -> project.track(id)?.let { publish() } } }; stopPreview(); upload = null }
     private fun printRig(a: ShortArray, rig: Rig): ShortArray { val proc = RigProcessor(ENGINE_SR.toFloat(), rig.copy()); val out = ShortArray(a.size); val buf = FloatArray(512); var i = 0
         while (i < a.size) { val n = minOf(512, a.size - i); for (k in 0 until n) buf[k] = a[i + k] / 32768f; proc.process(buf, n); for (k in 0 until n) out[i + k] = (buf[k].coerceIn(-1f, 1f) * 32767f).toInt().toShort(); i += n }; return out }
+
+    // ------------------------------------------------------------------ songwriter (2.2.0)
+    // Created the first time the Songwriter tab is opened; never at launch. Holds no reference to the Studio project.
+    private var songwriterRef: com.studiospark.app.songwriter.SongwriterSession? = null
+    val songwriterCreated get() = songwriterRef != null
+    fun songwriter() = songwriterRef ?: com.studiospark.app.songwriter.SongwriterSession().also { songwriterRef = it }
+
+    // ------------------------------------------------------------------ shared engine (2.2.0)
+    // One engine + one universal gear library under Studio, Import and Songwriter, each with an isolated session.
+    // Lazy: nothing here is constructed at launch; the first user action that needs it creates it.
+    private var sessionHostRef: com.studiospark.app.engine.shared.SessionHost? = null
+    val sessionHostCreated get() = sessionHostRef != null
+    val sessionHost: com.studiospark.app.engine.shared.SessionHost get() = sessionHostRef
+        ?: com.studiospark.app.engine.shared.SessionHost({ project }, { com.studiospark.app.engine.shared.AudioEngineBackend(engine) }).also { sessionHostRef = it }
+    /** Blank-launch check result (BootGuard); false would mean something loaded at startup. */
+    var launchClean by mutableStateOf(true); private set
+
+    private var swJob: Job? = null
+    fun songwriterPlay(onBar: (Int) -> Unit = {}) { val s = songwriter(); if (s.progression.isEmpty()) return
+        val parts = s.parts(ENGINE_SR); val bar = s.beatFrames(ENGINE_SR) * 4; val len = bar * s.progression.size
+        engine.preview(com.studiospark.app.songwriter.Accompaniment.render(parts, ENGINE_SR, len))
+        swJob?.cancel(); swJob = viewModelScope.launch { val t0 = System.nanoTime(); val barMs = bar * 1000 / ENGINE_SR
+            while (true) { val b = ((System.nanoTime() - t0) / 1_000_000 / barMs).toInt(); if (b >= s.progression.size) break; if (s.playingBar != b) { s.playingBar = b; onBar(b) }; delay(50) }; s.playingBar = -1; onBar(-1) } }
+    fun songwriterStop(onBar: (Int) -> Unit = {}) { swJob?.cancel(); songwriterRef?.playingBar = -1; onBar(-1); engine.preview(null) }
+    @Volatile private var swListen = false
+    /** Hum/play capture: asks for the mic like every other mic tap, records up to 8 s, tracks pitch, proposes chords. */
+    fun songwriterListen(onChange: () -> Unit = {}) { val s = songwriter(); requestMicPermission?.invoke { ok -> if (!ok) { s.status = "Microphone permission is needed to listen."; onChange(); return@invoke }
+        swListen = true; s.listening = true; s.status = null; onChange()
+        viewModelScope.launch(Dispatchers.Default) {
+            val sr = 44100; val buf = FloatArrayBuilder()
+            val rec = runCatching { AndroidMicRecorder.factory(getApplication<Application>().getSystemService(android.media.AudioManager::class.java))(MicConfig(android.media.MediaRecorder.AudioSource.MIC, false, sr), null, 2048) }.getOrNull()
+            if (rec == null || !rec.initialized || !rec.start()) { withContext(Dispatchers.Main) { s.listening = false; s.status = "Could not open the microphone."; onChange() }; rec?.release(); return@launch }
+            val chunk = FloatArray(2048)
+            try { while (swListen && buf.size < sr * 8) { val n = rec.read(chunk); if (n < 0) break; for (i in 0 until n) buf.add(chunk[i]) } } finally { rec.release() }
+            val x = buf.toArray(); val notes = com.studiospark.app.songwriter.Pitch.track(x, sr)
+            val scaled = notes.map { it.copy(start = it.start * ENGINE_SR / sr, length = it.length * ENGINE_SR / sr) }
+            withContext(Dispatchers.Main) { s.listening = false; s.melody = scaled; s.harmonize(ENGINE_SR)
+                s.status = if (notes.isEmpty()) "No clear notes heard. Try humming louder, one note at a time." else "Melody chords are suggestions; tap Use these chords to add them."; onChange() } } } }
+    fun songwriterStopListening() { swListen = false }
+    /** Manual handoff only: adds Songwriter drums, bass, guitar and a lyric-bearing vocal track to the Studio project (undoable). */
+    /** Built in the isolated SONGWRITER session of the shared engine, then deep-copied into Studio in one undoable edit. */
+    fun songwriterToStudio() { val s = songwriterRef ?: return; if (s.progression.isEmpty()) return; songwriterStop()
+        val kit = project.allInstruments().firstOrNull { it.family == Family.DRUMS && it.id.startsWith("kit_") }?.id ?: "pads_main"
+        edit { tempo = s.tempo; com.studiospark.app.songwriter.SongwriterToStudio.send(s, sessionHost, this, kit) }
+        screen = Screen.STUDIO; message = "Songwriter progression added as new Studio tracks (undo to remove)" }
+
+    // ------------------------------------------------------------------ import (2.2.0)
+    // Nothing here exists until the Import tab asks for it; the controller itself loads no model (see ModelGate).
+    private var importerRef: com.studiospark.app.importer.ImportController? = null
+    val importerCreated get() = importerRef != null
+    fun importer(): com.studiospark.app.importer.ImportController = importerRef ?: com.studiospark.app.importer.ImportController(getApplication(), viewModelScope).also { importerRef = it }
+    private fun to48k(a: ShortArray) = Wav.toShorts(Wav.resample(FloatArray(a.size) { a[it] / 32768f }, 44100, ENGINE_SR))
+    fun importPreview(a: ShortArray?) { engine.preview(a?.let { to48k(it) }) }
+    /** The one-tap confirm: the isolated import session's strips become new tracks in the active project (undoable). */
+    fun importCommit(s: com.studiospark.app.importer.ImportSession) { engine.preview(null); s.confirm(); var added = emptyList<Track>()
+        edit { added = s.commitInto(this, ::to48k) { pcm -> val id = newId(); pool.put(id, pcm); id } }
+        screen = Screen.STUDIO; message = "${added.size} stems from ${s.sourceName} added as Studio tracks" }
 
     // ------------------------------------------------------------------ stems
     fun stemsImport(uri: Uri) {
@@ -652,6 +714,14 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
     // init last: every property above must be initialised before the engine and room are built
     /** False until the session is loaded and the engine is running; the UI shows a light loading state until then. */
     var ready by mutableStateOf(false); private set
+    /** The user's explicit save, else the untouched 2.1.0 project.json (read-only from 2.2.0 on). */
+    private fun lastSessionFile(): File? = listOf("last-session.json", "project.json").map { File(dir, it) }.firstOrNull { it.exists() && it.length() > 0 }
+    val hasLastSession get() = lastSessionFile() != null
+    /** User action only: reopens the saved session (undoable back to the blank one). */
+    fun openLastSession() { val f = lastSessionFile() ?: return
+        viewModelScope.launch { val p = withContext(Dispatchers.IO) { runCatching { ProjectJson.read(f.readText()) }.getOrNull() } ?: run { message = "Last session could not be read"; return@launch }
+            stop(); undoStack.push(ProjectJson.write(project)); rigs.clear(); mergeUserLibrary(p); project = p; KitRegistry.project = p
+            selectedTrackId = p.tracks.firstOrNull()?.id; withContext(Dispatchers.Default) { publish() }; rev++; scheduleSave(); message = "Opened \"${p.name}\"" } }
     private val pendingReady = mutableListOf<() -> Unit>()
     /** Runs [action] now if the session is ready, otherwise right after startup finishes (on the main thread). */
     fun whenReady(action: () -> Unit) { if (ready) action() else pendingReady += action }
@@ -663,14 +733,20 @@ class StudioVM(app: Application) : AndroidViewModel(app) {
         // Launch opens a basic studio only. No samples, rigs, room, input scan, MIDI or audio engine are started here:
         // each loads when the user first needs it. Only the lightweight session data is read, off the main thread.
         viewModelScope.launch {
+            val boot = BootGuard.enforceBlankLaunch(getApplication<Application>())   // empty: no gear, models, stems or samples
             val loaded = withContext(Dispatchers.Default) {
-                val f = File(dir, "project.json")
-                val p = if (f.exists()) runCatching { ProjectJson.read(f.readText()) }.getOrElse { Sessions.blank() } else Sessions.blank()
+                // 2.2.0 blank-launch rule: the previous session is NOT opened at launch, and launch writes no session file.
+                // last-session.json is written only by an explicit Save; "Open last session" reopens it on user request.
+                val p = Sessions.blank().also { it.tracks.addAll(boot.tracks) }
                 mergeUserLibrary(p); p   // saved kits, guitars and basses stay listed everywhere (data only, no assets)
             }
             project = loaded; KitRegistry.project = loaded
             selectedTrackId = loaded.tracks.firstOrNull()?.id
             withContext(Dispatchers.Default) { publish() }   // track list only: no rig is built, no samples load
+            launchClean = BootGuard.isLaunchClean(StudioSession.of(project, rigs.builtIds(), sessionHostRef?.gear?.loadedGear() ?: emptySet(),
+                com.studiospark.app.importer.ModelGate.loads, com.studiospark.app.importer.ModelGate.lastLoad))
+            if (!launchClean) android.util.Log.w("SSBoot", "blank-launch violated: something loaded at startup")
+            else android.util.Log.i("SSBoot", "launch clean: 0 tracks, 0 gear, 0 models")
             ready = true
             val queued = pendingReady.toList(); pendingReady.clear(); queued.forEach { runCatching { it() } }
             if (midiInput) launch(Dispatchers.Default) { runCatching { midiHub.listen() } }   // user turned MIDI on earlier
